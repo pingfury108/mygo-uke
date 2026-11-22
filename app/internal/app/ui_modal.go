@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -151,13 +150,26 @@ func scoreBarAt(a *app, i int) score.Bar {
 
 func (a *app) analysisModal(c *ui.Context) {
 	open := true
+	title := "分析和弦"
+	detail := "抽取音轨 → beat_this / BTC → 小节"
+	switch {
+	case a.jobErr != "":
+		title = "分析失败"
+		detail = a.jobErr
+	case a.jobRunning:
+		title = "正在分析"
+		detail = a.jobStage
+	case a.analysis >= 1:
+		title = "分析完成"
+		detail = "工程已保存，可以逐句校对"
+	}
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(460).Gap(12).Children(func() {
-			modalTitle(c, "重新分析", "ASR 与和弦分析并发执行，共享同一条音轨时间轴")
-			stageRow(c, "1", "抽取音轨", "128k mono mp3", true)
-			stageRow(c, "2", "语音转写", "火山豆包 · 句级 utterances", a.analysis > 0.28)
-			stageRow(c, "3", "和弦分析", "BTC large-voca + beat_this", a.analysis > 0.58)
-			stageRow(c, "4", "小节对齐", "downbeats → bars", a.analysis >= 1)
+			modalTitle(c, title, detail)
+			stageRow(c, "1", "抽取音轨", "ffmpeg · 128k mono mp3", a.analysis >= 0.16, "")
+			stageRow(c, "2", "语音转写", "火山 ASR 待接入 · 可先手动填词", false, "待接入")
+			stageRow(c, "3", "和弦分析", "BTC large-voca + beat_this", a.analysis >= 0.88, "")
+			stageRow(c, "4", "小节对齐", fmt.Sprintf("%d bars", len(a.proj.Bars)), a.analysis >= 1, "")
 			progress := a.analysis
 			ui.Column(c).Gap(5).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -171,9 +183,13 @@ func (a *app) analysisModal(c *ui.Context) {
 					})
 			})
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if a.analysis < 1 {
+				switch {
+				case a.jobRunning:
 					text(c, "分析中，先别关窗口…", 9.5, pal.faint)
-				} else {
+				case a.jobErr != "":
+					ghostButton(c, "关闭", func() { a.modal = modalNone })
+					primaryButton(c, "重试", func() { a.startAnalysis(a.jobSource, a.jobImport) })
+				default:
 					ghostButton(c, "关闭", func() { a.modal = modalNone })
 					primaryButton(c, "完成", func() { a.modal = modalNone })
 				}
@@ -183,16 +199,9 @@ func (a *app) analysisModal(c *ui.Context) {
 	if !open {
 		a.modal = modalNone
 	}
-	if a.modal == modalAnalysis && a.analysis < 1 {
-		a.analysis += 0.012
-		if a.analysis > 1 {
-			a.analysis = 1
-		}
-		c.After(90 * time.Millisecond)
-	}
 }
 
-func stageRow(c *ui.Context, index, name, detail string, done bool) {
+func stageRow(c *ui.Context, index, name, detail string, done bool, status string) {
 	ui.Row(c).Gap(9).AlignItems(ui.Center).Children(func() {
 		box := ui.Box(c).Size(20, 20).Radius(999).Center()
 		if done {
@@ -214,6 +223,8 @@ func stageRow(c *ui.Context, index, name, detail string, done bool) {
 		ui.Box(c).Grow(1)
 		if done {
 			text(c, "完成", 9, pal.good)
+		} else if status != "" {
+			text(c, status, 9, pal.faint)
 		} else {
 			text(c, "等待中", 9, pal.faint)
 		}

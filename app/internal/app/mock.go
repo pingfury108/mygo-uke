@@ -13,6 +13,8 @@ type projectItem struct {
 	state string
 	chord string
 	tone  int
+	path  string
+	data  *project.Project
 }
 
 func demoProjects() []projectItem {

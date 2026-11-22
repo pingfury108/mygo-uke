@@ -5,13 +5,25 @@ package project
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+	"unicode"
 
 	"mygo-uke/internal/score"
 )
 
 const Version = 1
+
+// Entry is one project found in the local library.
+type Entry struct {
+	Path     string
+	Project  *Project
+	Modified time.Time
+}
 
 // Project is the single source of truth for one song.
 type Project struct {
@@ -125,4 +137,72 @@ func Load(path string) (*Project, error) {
 		p.Pattern = "folk-basic"
 	}
 	return &p, nil
+}
+
+// Root is the local project library, overridable for tests and portable use.
+func Root() string {
+	if value := os.Getenv("MYGO_UKE_PROJECTS"); value != "" {
+		return value
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = "."
+	}
+	return filepath.Join(dir, "mygo-uke", "projects")
+}
+
+// NewDir returns a fresh project directory under root.
+func NewDir(root, title string) string {
+	slug := slugify(title)
+	if slug == "" {
+		slug = "project"
+	}
+	return filepath.Join(root, fmt.Sprintf("%s-%d", slug, time.Now().UnixNano()))
+}
+
+// List returns projects newest first. A missing library is empty, not an error.
+func List(root string) ([]Entry, error) {
+	dirs, err := os.ReadDir(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var entries []Entry
+	for _, dir := range dirs {
+		if !dir.IsDir() {
+			continue
+		}
+		path := filepath.Join(root, dir.Name(), "project.json")
+		loaded, err := Load(path)
+		if err != nil {
+			continue
+		}
+		info, err := dir.Info()
+		if err != nil {
+			continue
+		}
+		entries = append(entries, Entry{Path: path, Project: loaded, Modified: info.ModTime()})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Modified.After(entries[j].Modified)
+	})
+	return entries, nil
+}
+
+func slugify(title string) string {
+	var out strings.Builder
+	lastDash := false
+	for _, r := range strings.TrimSpace(title) {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			out.WriteRune(r)
+			lastDash = false
+		case !lastDash:
+			out.WriteByte('-')
+			lastDash = true
+		}
+	}
+	return strings.Trim(out.String(), "-")
 }

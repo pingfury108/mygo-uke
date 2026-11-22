@@ -9,6 +9,12 @@
 
 ## 开发
 
+导入功能需要本机有 `ffmpeg` / `ffprobe`：
+
+```sh
+ffmpeg -version
+```
+
 ```sh
 cd app
 go mod tidy
@@ -56,6 +62,12 @@ rdev --no-sync runpulse restart chordd
 
 ## 当前阶段
 
-M1/M2 的骨架：录音棚界面、工程模型、小节生成、尤克里里指法表，以及可独立启动的
-`chordd` 接口。真实 `beat_this + BTC` 分析器已接通并部署在 pcw；ASR 和 ffmpeg
-导出仍待接入。M0 实测记录见 `docs/m0-validation.md`。
+M1/M2：录音棚界面、工程模型、小节生成、尤克里里指法表，以及真实导入管线
+（视频 → ffmpeg 抽音轨 → chordd → `project.json`）。真实 `beat_this + BTC`
+分析器已部署在 pcw；火山 ASR 和 ffmpeg 成片导出仍待接入。
+
+- M0 实测记录：`docs/m0-validation.md`
+- M1 导入管线：`docs/m1-import.md`
+
+工程库默认在 `~/Library/Application Support/mygo-uke/projects`，可用
+`MYGO_UKE_PROJECTS` 覆盖。

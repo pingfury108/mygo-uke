@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+
+	"mygo-uke/internal/project"
+	"mygo-uke/internal/score"
 )
 
 func TestStudioInteractions(t *testing.T) {
@@ -111,7 +114,7 @@ func TestModalsRender(t *testing.T) {
 	a.modal = modalAnalysis
 	a.analysis = 0.5
 	tt.Frame()
-	if _, ok := tt.Find("重新分析"); !ok {
+	if _, ok := tt.Find("分析和弦"); !ok {
 		t.Fatal("analysis modal did not render")
 	}
 }
@@ -120,5 +123,43 @@ func TestRenderExportFrame(t *testing.T) {
 	img := RenderExportFrame(360, 640, nil)
 	if got := img.Bounds().Size(); got.X != 360 || got.Y != 640 {
 		t.Fatalf("export frame size = %v", got)
+	}
+}
+
+func TestRenderImportedProjectWithoutLines(t *testing.T) {
+	p := project.New("导入测试")
+	p.Duration = 12
+	p.Tempo = 100
+	p.Key = "G"
+	p.Downbeats = []float64{0, 3, 6, 9}
+	p.Chords = []score.ChordSegment{
+		{Start: 0, End: 3, Label: "G", Conf: 0.9},
+		{Start: 3, End: 6, Label: "C", Conf: 0.8},
+	}
+	p.RebuildBars()
+
+	a := newApp()
+	a.proj = p
+	a.projects = append([]projectItem{a.projectItem(p, "/tmp/project.json", 0)}, a.projects...)
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if _, ok := tt.Find("导入测试"); !ok {
+		t.Fatal("imported project title did not render")
+	}
+	if _, ok := tt.Find("0 句"); !ok {
+		t.Fatal("empty subtitle list did not render")
+	}
+}
+
+func TestApplyImportedPrependsProject(t *testing.T) {
+	a := newApp()
+	p := project.New("新歌")
+	a.applyImported(p, "/tmp/new/project.json", true)
+
+	if a.proj != p || a.selected != 0 || a.projects[0].title != "新歌" {
+		t.Fatalf("selected=%d title=%q", a.selected, a.projects[0].title)
+	}
+	if len(a.projects) != len(demoProjects())+1 {
+		t.Fatalf("projects = %d", len(a.projects))
 	}
 }

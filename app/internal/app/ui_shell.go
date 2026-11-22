@@ -29,10 +29,7 @@ func (a *app) titlebar(c *ui.Context) {
 			text(c, "已保存", 9, pal.muted)
 		})
 		ui.Box(c).Grow(1)
-		flatButton(c, "重新分析", func() {
-			a.modal = modalAnalysis
-			a.analysis = 0.18
-		})
+		flatButton(c, "重新分析", func() { a.startReanalyze(c) })
 		segment(c, []string{"竖屏", "横屏"}, &a.orientation)
 		primaryButton(c, "导出成片", func() { a.modal = modalExport })
 	})
@@ -46,9 +43,7 @@ func (a *app) rail(c *ui.Context) {
 		ui.Row(c).Padding(2, 5, 10, 5).AlignItems(ui.Center).Children(func() {
 			label(c, "工程", 10, pal.muted, 650)
 			ui.Box(c).Grow(1)
-			iconButton(c, "+", "新建工程", func() {
-				a.toast(c, "新建工程", "导入视频后自动创建工程")
-			})
+			iconButton(c, "+", "导入视频", a.startImport)
 		})
 		for i := range a.projects {
 			index := i
@@ -97,12 +92,18 @@ func (a *app) projectRow(c *ui.Context, index int) {
 	}
 	row.OnClick(func() {
 		a.selected = index
-		if index == 0 {
+		if item.data != nil {
+			a.proj = item.data
+			a.resetCursor()
+		} else if index == 0 {
 			a.proj = demoProject()
+			a.playhead = 42
+			a.selectedLine = 6
 		} else {
+			a.proj = demoProject()
 			a.proj.Title = item.title
+			a.playhead = 42
 		}
-		a.playhead = 42
 		a.playing = false
 	})
 	row.DrawOver(func(p *ui.Painter, r ui.Rect) {

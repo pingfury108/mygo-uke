@@ -50,6 +50,12 @@ type app struct {
 	chordBar     int
 	chordChoice  string
 
+	jobRunning bool
+	jobErr     string
+	jobStage   string
+	jobImport  bool
+	jobSource  string
+
 	chorddURL      string
 	chorddOnline   bool
 	chorddChecked  bool
@@ -60,6 +66,7 @@ type app struct {
 func Run() error {
 	a := newApp()
 	mygo.App.WhenReady(func() {
+		a.loadLibrary()
 		a.win = mygo.NewWindow(mygo.WindowOptions{
 			Title:                "MyGo Uke",
 			Width:                1440,
@@ -71,6 +78,11 @@ func Run() error {
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 18},
 			BackgroundColor:      "#0F1013",
 			Content:              ui.View(a.view),
+		})
+		a.win.OnFileDrop(func(e *mygo.FileDropEvent) {
+			if len(e.Paths) > 0 {
+				a.startAnalysis(e.Paths[0], true)
+			}
 		})
 		a.watchChordd()
 	})
