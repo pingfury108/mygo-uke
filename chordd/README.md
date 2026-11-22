@@ -16,11 +16,30 @@ uv sync --extra analysis
 CHORDD_ANALYZER=beat-this uv run uvicorn chordd.main:app --port 8790
 ```
 
-真实分析器入口在 `chordd/analyze.py`：
+真实分析器在 `chordd/real.py`：
 
 - `beat_this` 出 `tempo / beats / downbeats`
 - BTC large-voca 出 `chords`
 - 调性用和弦序列 + Krumhansl 模板
+
+可调参数：
+
+```text
+CHORDD_ANALYZER=beat-this      启用真实分析器
+CHORDD_TORCH_THREADS=4         torch 线程数
+CHORDD_BTC_BATCH=8             BTC 分块批大小
+CHORDD_DEVICE=cpu              torch 设备
+CHORDD_MODEL_DIR=...           模型缓存目录，默认 ~/.cache/chordd/models
+CHORDD_BTC_WEIGHTS=...         直接指定 BTC 权重
+CHORDD_BEAT_MODEL=final0       beat_this checkpoint 名称或路径
+```
+
+单独分析一个文件并生成波形/downbeat 叠加图：
+
+```sh
+uv run --extra analysis python scripts/analyze_file.py song.mp3 \
+  --json analysis/song.json --svg analysis/song.svg
+```
 
 ## 接口
 
@@ -41,7 +60,12 @@ GET  /healthz
 
 ```sh
 rdev server use pcw
-cd chordd && uv sync --frozen --no-dev
-rdev --no-sync runpulse restart chordd
+cd chordd && uv sync --frozen --extra analysis --no-dev
+rdev --no-sync .venv/bin/python -m chordd.model_store
+rdev --no-sync runpulse start /data/rdev/mygo-uke/chordd/.venv/bin/uvicorn \
+  --name chordd --cwd /data/rdev/mygo-uke/chordd \
+  --env CHORDD_ANALYZER=beat-this --env CHORDD_TORCH_THREADS=4 \
+  --env CHORDD_BTC_BATCH=8 --env PYTHONUNBUFFERED=1 \
+  -- chordd.main:app --host 0.0.0.0 --port 8790
 rdev --no-sync curl -s http://127.0.0.1:8790/healthz
 ```

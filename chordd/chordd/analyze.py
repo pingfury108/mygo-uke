@@ -78,18 +78,9 @@ class RealAnalyzer:
     )
 
     def analyze(self, audio: Path, duration: float | None, progress: Progress) -> AnalyzeResult:
-        try:
-            import beat_this  # noqa: F401
-            import librosa  # noqa: F401
-        except ImportError as exc:
-            raise RuntimeError(
-                "real analyzer needs `uv sync --extra analysis`; "
-                "run with CHORDD_ANALYZER=mock until then"
-            ) from exc
-        raise RuntimeError(
-            "beat_this/BTC weights are not wired yet; "
-            "the HTTP contract and cache are ready for the model adapter"
-        )
+        from .real import analyze as run_real
+
+        return run_real(audio, duration, progress)
 
 
 def analyzer_from_env() -> Analyzer:

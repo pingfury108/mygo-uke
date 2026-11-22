@@ -6,4 +6,5 @@ chordd/**/__pycache__/
 chordd/.pytest_cache/
 chordd/.ruff_cache/
 chordd/models/
+chordd/analysis/
 *.pyc

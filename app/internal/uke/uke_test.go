@@ -14,7 +14,12 @@ func TestNormalize(t *testing.T) {
 		{"Cmaj9", "Cmaj7", true},
 		{"G/B", "G", true},
 		{"Am7", "Am7", true},
+		{"C:min", "Cm", true},
+		{"C:min7", "Cm7", true},
+		{"C:maj7", "Cmaj7", true},
 		{"N.C.", "", false},
+		{"N", "", false},
+		{"X", "", false},
 		{"", "", false},
 	}
 	for _, tt := range tests {

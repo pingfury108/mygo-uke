@@ -41,7 +41,9 @@ func (c Chord) Name() string { return pitchNames[c.Root] + c.Quality }
 func Normalize(label string) (Chord, bool) {
 	raw := strings.TrimSpace(label)
 	raw = strings.NewReplacer("♯", "#", "♭", "b", "＃", "#").Replace(raw)
-	if raw == "" || strings.EqualFold(raw, "N.C.") || strings.EqualFold(raw, "NC") || raw == "-" {
+	if raw == "" || raw == "-" ||
+		strings.EqualFold(raw, "N") || strings.EqualFold(raw, "X") ||
+		strings.EqualFold(raw, "N.C.") || strings.EqualFold(raw, "NC") {
 		return Chord{}, false
 	}
 	if i := strings.IndexByte(raw, '/'); i > 0 {
@@ -76,6 +78,7 @@ func parseChord(s string) (root int, quality string, approx bool, ok bool) {
 		i++
 	}
 	rest := strings.TrimSpace(s[i:])
+	rest = strings.TrimSpace(strings.TrimPrefix(rest, ":"))
 	rest = stripParentheses(rest)
 	quality, approx = normalizeQuality(rest)
 	return root, quality, approx, true
