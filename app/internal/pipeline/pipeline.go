@@ -162,7 +162,7 @@ func Import(
 		warnings = append(warnings, "字幕识别失败："+line.err.Error())
 	}
 
-	title := strings.TrimSuffix(filepath.Base(absolute), filepath.Ext(absolute))
+	title := sourceTitle(absolute, duration)
 	built := fromResult(title, absolute, duration, chord.value, line.value)
 	built.Warnings = warnings
 	path := filepath.Join(project.NewDir(root, title), "project.json")
@@ -251,6 +251,17 @@ func clampSeconds(value, duration float64) float64 {
 		return duration
 	}
 	return value
+}
+
+func sourceTitle(path string, duration float64) string {
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	lower := strings.ToLower(base)
+	for _, prefix := range []string{"mmexport", "wx_camera_", "rpreplay_final", "img_"} {
+		if strings.HasPrefix(lower, prefix) {
+			return "弹唱 " + score.TimeText(duration)
+		}
+	}
+	return base
 }
 
 func clamp(value float64) float64 {

@@ -49,6 +49,17 @@ func TranscribeFile(
 
 	frame := make([]byte, PCMFrameBytes)
 	var sent int64
+	lastReport := -1.0
+	emit := func(value float64) {
+		if progress == nil {
+			return
+		}
+		if value < 0.99 && value-lastReport < 0.02 {
+			return
+		}
+		lastReport = value
+		progress(value)
+	}
 	for {
 		n, readErr := io.ReadFull(file, frame)
 		if n > 0 {
@@ -62,9 +73,7 @@ func TranscribeFile(
 				return nil, err
 			}
 			sent += int64(n)
-			if progress != nil {
-				progress(float64(sent) / float64(info.Size()) * 0.9)
-			}
+			emit(float64(sent) / float64(info.Size()) * 0.9)
 		}
 		if errors.Is(readErr, io.EOF) || errors.Is(readErr, io.ErrUnexpectedEOF) {
 			break
@@ -97,20 +106,125 @@ func TranscribeFile(
 				utterances = last
 			}
 			lines := linesFrom(utterances, duration)
+			lines = splitLongLines(lines)
 			if len(lines) == 0 {
 				return nil, fmt.Errorf(
 					"asr: 定稿没有句级 utterances（文本：%q）",
 					strings.TrimSpace(result.Text),
 				)
 			}
-			if progress != nil {
-				progress(1)
-			}
+			emit(1)
 			return lines, nil
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	}
+}
+
+// splitLongLines turns a long utterance into subtitle-sized lines. Singing
+// often has no long pauses, so the ASR may return one 20-second utterance
+// with several punctuation marks. Times are apportioned by text length.
+func splitLongLines(lines []Line) []Line {
+	var out []Line
+	for _, line := range lines {
+		parts := splitText(line.Text)
+		if len(parts) <= 1 {
+			out = append(out, line)
+			continue
+		}
+		total := 0
+		for _, part := range parts {
+			total += len([]rune(part))
+		}
+		if total == 0 {
+			continue
+		}
+		start := line.Start
+		for i, part := range parts {
+			end := line.End
+			if i < len(parts)-1 {
+				share := float64(len([]rune(part))) / float64(total)
+				end = start + (line.End-line.Start)*share
+			}
+			if end <= start {
+				end = start + 0.2
+			}
+			out = append(out, Line{Start: start, End: end, Text: part})
+			start = end
+		}
+	}
+	return out
+}
+
+func splitText(text string) []string {
+	var sentences []string
+	var current strings.Builder
+	flush := func() {
+		value := strings.TrimSpace(current.String())
+		if value != "" {
+			sentences = append(sentences, value)
+		}
+		current.Reset()
+	}
+	for _, r := range text {
+		current.WriteRune(r)
+		switch r {
+		case '。', '！', '？', '!', '?', '；', ';', '\n':
+			flush()
+		}
+	}
+	flush()
+
+	var out []string
+	for _, sentence := range sentences {
+		out = append(out, splitClauses(sentence)...)
+	}
+	return out
+}
+
+func splitClauses(text string) []string {
+	if len([]rune(text)) <= 18 {
+		return []string{text}
+	}
+	var clauses []string
+	var current strings.Builder
+	flush := func() {
+		value := strings.TrimSpace(current.String())
+		if value != "" {
+			clauses = append(clauses, value)
+		}
+		current.Reset()
+	}
+	for _, r := range text {
+		current.WriteRune(r)
+		switch r {
+		case '，', ',', '、':
+			flush()
+		}
+	}
+	flush()
+	if len(clauses) <= 1 {
+		return hardSplit(text, 18)
+	}
+	var out []string
+	for _, clause := range clauses {
+		out = append(out, hardSplit(clause, 18)...)
+	}
+	return out
+}
+
+func hardSplit(text string, size int) []string {
+	runes := []rune(text)
+	if len(runes) <= size {
+		return []string{text}
+	}
+	var out []string
+	for len(runes) > 0 {
+		n := min(size, len(runes))
+		out = append(out, strings.TrimSpace(string(runes[:n])))
+		runes = runes[n:]
+	}
+	return out
 }
 
 func linesFrom(utterances []Utterance, duration float64) []Line {

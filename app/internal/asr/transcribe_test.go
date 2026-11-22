@@ -31,3 +31,32 @@ func TestLinesFromKeepsLatestRevision(t *testing.T) {
 		t.Fatalf("lines = %#v", got)
 	}
 }
+
+func TestSplitLongLines(t *testing.T) {
+	got := splitLongLines([]Line{{
+		Start: 0,
+		End:   10,
+		Text:  "第一句。第二句！第三句？",
+	}})
+	if len(got) != 3 {
+		t.Fatalf("lines = %#v", got)
+	}
+	if got[0].Start != 0 || got[0].End <= got[0].Start || got[2].End != 10 {
+		t.Fatalf("times = %#v", got)
+	}
+	if got[1].Text != "第二句！" || got[2].Text != "第三句？" {
+		t.Fatalf("texts = %#v", got)
+	}
+
+	long := splitLongLines([]Line{{
+		Start: 0,
+		End:   9,
+		Text:  "这一句没有任何标点但是非常非常长需要硬切分成多行字幕",
+	}})
+	if len(long) < 2 {
+		t.Fatalf("hard split = %#v", long)
+	}
+	if long[len(long)-1].End != 9 {
+		t.Fatalf("last end = %v", long[len(long)-1].End)
+	}
+}

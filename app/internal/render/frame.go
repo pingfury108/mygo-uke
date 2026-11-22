@@ -243,7 +243,7 @@ func subtitle(c *ui.Context, value string, spec Spec, style project.Style) {
 	ui.Box(c).Absolute().Left(left).Right(right).Top(h * 0.70).Children(func() {
 		ui.Row(c).Center().Children(func() {
 			ui.Row(c).Padding(h*0.009, h*0.012, h*0.009, h*0.012).
-				Radius(h * 0.007).Background(ui.RGBA(10, 9, 8, 0.58)).Children(func() {
+				Radius(h * 0.007).Background(ui.RGBA(10, 9, 8, 0.66)).Children(func() {
 				label(c, value, size, ui.Hex(ink), 600).
 					TextAlign(ui.Center).Width(usable - h*0.024)
 			})
@@ -262,8 +262,8 @@ func chip(c *ui.Context, value string, w, h, size float32, current bool, accent,
 	if current {
 		box.Background(accent)
 	} else {
-		box.Border(1, ui.RGBA(255, 255, 255, 0.14)).
-			Background(ui.RGBA(16, 14, 12, 0.42))
+		box.Border(1, ui.RGBA(255, 255, 255, 0.20)).
+			Background(ui.RGBA(16, 14, 12, 0.64))
 	}
 	color := ui.RGBA(255, 248, 234, 0.82)
 	if current {
@@ -278,8 +278,8 @@ func fingering(c *ui.Context, spec Spec, bar score.Bar, top, w, h float32, accen
 	boxW := w * 0.09
 	box := ui.Column(c).Absolute().Right(w*0.111).Top(top).Width(boxW).
 		Padding(h*0.005).Radius(h*0.007).Gap(h*0.002).
-		Border(1, ui.RGBA(255, 255, 255, 0.14)).
-		Background(ui.RGBA(16, 14, 12, 0.46))
+		Border(1, ui.RGBA(255, 255, 255, 0.20)).
+		Background(ui.RGBA(16, 14, 12, 0.68))
 	box.Children(func() {
 		fingeringBox(c, bar, spec.Project, boxW-h*0.01, h*0.062, accent,
 			ui.RGBA(255, 248, 234, 0.62))

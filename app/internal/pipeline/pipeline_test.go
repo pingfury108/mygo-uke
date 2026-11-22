@@ -115,3 +115,12 @@ func TestImportKeepsChordsWhenASRFails(t *testing.T) {
 		t.Fatalf("warnings = %v", built.Warnings)
 	}
 }
+
+func TestSourceTitle(t *testing.T) {
+	if got := sourceTitle("/tmp/mmexport1795328663661.mp4", 36.2); got != "弹唱 00:36" {
+		t.Fatalf("wechat title = %q", got)
+	}
+	if got := sourceTitle("/tmp/晴天.mov", 200); got != "晴天" {
+		t.Fatalf("normal title = %q", got)
+	}
+}

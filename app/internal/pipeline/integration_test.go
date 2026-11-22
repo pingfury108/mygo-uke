@@ -92,3 +92,60 @@ func TestImportLiveASR(t *testing.T) {
 		t.Logf("%.2f–%.2fs %s", line.Start, line.End, line.Text)
 	}
 }
+
+// Run with a real chordd, Volcengine key and a song:
+//
+//	MYGO_UKE_SOURCE=/path/song.mp4 MYGO_UKE_VOLCANO_API_KEY=... \
+//	  go test ./internal/pipeline -run TestImportFullIntegration -v -count=1
+func TestImportFullIntegration(t *testing.T) {
+	source := os.Getenv("MYGO_UKE_SOURCE")
+	key := os.Getenv("MYGO_UKE_VOLCANO_API_KEY")
+	if source == "" || key == "" {
+		t.Skip("set MYGO_UKE_SOURCE and MYGO_UKE_VOLCANO_API_KEY to run the full import")
+	}
+	root := os.Getenv("MYGO_UKE_PROJECTS")
+	if root == "" {
+		root = t.TempDir()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	transcriber := ASRTranscriber{Config: asr.Config{
+		APIKey:     key,
+		WSURL:      os.Getenv("MYGO_UKE_VOLCANO_WS_URL"),
+		ResourceID: os.Getenv("MYGO_UKE_VOLCANO_RESOURCE_ID"),
+		Model:      os.Getenv("MYGO_UKE_VOLCANO_MODEL"),
+	}}
+	p, path, err := Import(
+		ctx,
+		source,
+		chordd.New(chorddBaseURL()),
+		FFmpeg{},
+		transcriber,
+		root,
+		func(progress Progress) {
+			t.Logf("%s %.0f%%", progress.Stage, progress.Value*100)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Chords) == 0 || len(p.Bars) == 0 {
+		t.Fatalf("chords=%d bars=%d", len(p.Chords), len(p.Bars))
+	}
+	if len(p.Warnings) > 0 {
+		t.Fatalf("warnings = %v", p.Warnings)
+	}
+	if len(p.Lines) == 0 {
+		t.Fatal("no sentence lines")
+	}
+	if _, err := project.Load(path); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf(
+		"project=%s duration=%.1fs tempo=%.0f key=%s chords=%d bars=%d lines=%d warnings=%v",
+		path, p.Duration, p.Tempo, p.Key, len(p.Chords), len(p.Bars), len(p.Lines), p.Warnings,
+	)
+	for _, line := range p.Lines {
+		t.Logf("line %.2f–%.2fs %s", line.Start, line.End, line.Text)
+	}
+}
