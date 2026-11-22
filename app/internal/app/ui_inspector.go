@@ -93,6 +93,10 @@ func (a *app) subtitleTab(c *ui.Context) {
 			a.selectedLine = index
 			a.playhead = l.Start
 			a.playing = false
+			if a.player != nil {
+				a.player.Pause()
+			}
+			a.seekPlayer()
 			a.syncSelection()
 		})
 		card.Children(func() {
@@ -117,6 +121,7 @@ func (a *app) subtitleTab(c *ui.Context) {
 			for _, bar := range a.proj.Bars {
 				if bar.NeedsReview {
 					a.playhead = bar.Start
+					a.seekPlayer()
 					a.syncSelection()
 					break
 				}
@@ -218,6 +223,7 @@ func (a *app) chordTab(c *ui.Context) {
 		}
 		row.OnClick(func() {
 			a.playhead = b.Start
+			a.seekPlayer()
 			a.syncSelection()
 			a.chordBar = index
 			a.chordChoice = firstChord(b)

@@ -53,6 +53,13 @@ func (a *app) stageHead(c *ui.Context) {
 				text(c, "和弦置信度", 9.5, pal.muted)
 			})
 			ghostButton(c, "安全区", func() { a.safe = !a.safe })
+			if a.player != nil {
+				muteLabel := "静音"
+				if a.muted {
+					muteLabel = "有声"
+				}
+				ghostButton(c, muteLabel, func() { a.setMuted(!a.muted) })
+			}
 			ghostButton(c, "预览", func() {
 				a.toast(c, "预览", "预览与成片共用同一套叠加层")
 			})
@@ -148,6 +155,9 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 		center.Draw(func(p *ui.Painter, r ui.Rect) {
 			drawVideoPlaceholder(p, r, "人像 607 × 1080")
 		})
+		center.Children(func() {
+			a.videoLayer(c, ui.Cover)
+		})
 
 		ui.Column(c).Absolute().Left(0).Top(0).Width(sideW).Height(h).
 			Padding(16, 14, 14, 14).Gap(6).Children(func() {
@@ -229,6 +239,7 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 		}
 	})
 	frame.Children(func() {
+		a.videoLayer(c, ui.Cover)
 		a.chordStrip(c, bar, w, h)
 		diagramCorner(c, bar, w, h, a.proj.Capo, a.overlayAccent())
 		if hasLine {
@@ -516,6 +527,7 @@ func (a *app) timeline(c *ui.Context) {
 			bounds := tl.Bounds()
 			if bounds.W > 0 {
 				a.playhead = math.Max(0, math.Min(1, float64(x/bounds.W))) * a.proj.Duration
+				a.seekPlayer()
 				a.syncSelection()
 			}
 		}

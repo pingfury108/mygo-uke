@@ -37,6 +37,10 @@ MYGO_UKE_VOLCANO_WS_URL=...         WebSocket 端点，默认官方 v3
 MYGO_UKE_VOLCANO_MODEL=bigmodel     模型名
 ```
 
+也可以在应用左上角「设置与 API Key」里填写这些值。设置保存在
+`~/Library/Application Support/mygo-uke/settings.json`（权限 0600），
+可用 `MYGO_UKE_SETTINGS` 覆盖路径；环境变量仍然优先于保存的值。
+
 ## 测试
 
 普通单测用 fake analyzer / fake media，不启动 ffmpeg 和网络：
@@ -89,6 +93,6 @@ MYGO_UKE_VOLCANO_API_KEY=... MYGO_UKE_ASR_SOURCE=/path/speech.aiff \
 
 ## 已知限制
 
-- 尚未做 ASR Key 的图形化设置页，当前用环境变量。
+- ASR Key 可在「设置与 API Key」里配置；环境变量优先。
 - 视频画面尚未接入预览/导出，当前只使用音频分析与波形。
 - 重新分析会覆盖当前工程的分析结果，尚未做“保留人工修改”的合并策略。

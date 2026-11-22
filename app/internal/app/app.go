@@ -23,6 +23,7 @@ const (
 	modalChords
 	modalAnalysis
 	modalLine
+	modalSettings
 )
 
 // app is the state every view reads and changes. It lives on the main
@@ -39,8 +40,11 @@ type app struct {
 	orientation int
 	safe        bool
 	playing     bool
+	muted       bool
 	playhead    float64
 	lastTick    time.Time
+	player      *ui.VideoPlayer
+	playerErr   error
 
 	selectedLine int
 	pattern      int
@@ -72,6 +76,10 @@ type app struct {
 	chorddChecked  bool
 	chorddAnalyzer string
 	asrConfig      asr.Config
+	settings       settings
+	settingsDraft  settings
+	settingsErr    string
+	chorddWake     chan struct{}
 }
 
 // Run starts the native MyGo window.
@@ -96,6 +104,7 @@ func Run() error {
 				a.startAnalysis(e.Paths[0], true)
 			}
 		})
+		a.win.OnClose(func(*mygo.CloseEvent) { a.closePlayer() })
 		a.watchChordd()
 	})
 	return mygo.App.Run()
@@ -103,6 +112,7 @@ func Run() error {
 
 func newApp() *app {
 	p := demoProject()
+	s := loadSettings()
 	return &app{
 		proj:         p,
 		projects:     demoProjects(),
@@ -110,9 +120,11 @@ func newApp() *app {
 		selectedLine: 6,
 		chordChoice:  "C",
 		lineIndex:    -1,
-		chorddURL:    chorddBaseURL(),
+		chorddURL:    s.ChorddURL,
 		exportSRT:    true,
-		asrConfig:    volcanoConfig(),
+		asrConfig:    s.asrConfig(),
+		settings:     s,
+		chorddWake:   make(chan struct{}, 1),
 	}
 }
 
@@ -121,19 +133,6 @@ func chorddBaseURL() string {
 		return url
 	}
 	return "http://MiWiFi-R1350-srv.local:8790"
-}
-
-func volcanoConfig() asr.Config {
-	key := os.Getenv("MYGO_UKE_VOLCANO_API_KEY")
-	if key == "" {
-		key = os.Getenv("VOLCANO_API_KEY")
-	}
-	return asr.Config{
-		APIKey:     key,
-		WSURL:      envOr("MYGO_UKE_VOLCANO_WS_URL", ""),
-		ResourceID: envOr("MYGO_UKE_VOLCANO_RESOURCE_ID", ""),
-		Model:      envOr("MYGO_UKE_VOLCANO_MODEL", ""),
-	}
 }
 
 func envOr(name, fallback string) string {
@@ -146,13 +145,18 @@ func envOr(name, fallback string) string {
 // watchChordd keeps the rail's service indicator honest. Network work stays
 // off the main thread; only the state write comes back to it.
 func (a *app) watchChordd() {
-	client := chordd.New(a.chorddURL)
 	go func() {
 		for {
+			var baseURL string
+			mygo.RunOnMain(func() { baseURL = a.chorddURL })
+			client := chordd.New(baseURL)
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 			health, err := client.Check(ctx)
 			cancel()
 			mygo.RunOnMain(func() {
+				if baseURL != a.chorddURL {
+					return
+				}
 				a.chorddChecked = true
 				a.chorddOnline = err == nil
 				a.chorddAnalyzer = health.Analyzer
@@ -160,9 +164,20 @@ func (a *app) watchChordd() {
 					a.win.Invalidate()
 				}
 			})
-			time.Sleep(20 * time.Second)
+			select {
+			case <-time.After(20 * time.Second):
+			case <-a.chorddWake:
+			}
 		}
 	}()
+}
+
+func (a *app) refreshChordd() {
+	select {
+	case a.chorddWake <- struct{}{}:
+	default:
+	}
+	a.invalidate()
 }
 
 func (a *app) view(c *ui.Context) {
@@ -189,6 +204,8 @@ func (a *app) view(c *ui.Context) {
 		a.analysisModal(c)
 	case modalLine:
 		a.lineModal(c)
+	case modalSettings:
+		a.settingsModal(c)
 	}
 }
 
@@ -221,6 +238,22 @@ func (a *app) tick(c *ui.Context) {
 		a.lastTick = time.Time{}
 		return
 	}
+	if a.playerUsable() {
+		a.playhead = a.player.Position().Seconds()
+		if a.player.Ended() {
+			a.playhead = a.proj.Duration
+			a.playing = false
+			a.player.Pause()
+		}
+		if a.playhead >= a.proj.Duration {
+			a.playhead = a.proj.Duration
+			a.playing = false
+			a.player.Pause()
+		}
+		a.syncSelection()
+		c.After(33 * time.Millisecond)
+		return
+	}
 	now := time.Now()
 	if !a.lastTick.IsZero() {
 		a.playhead += now.Sub(a.lastTick).Seconds()
@@ -237,13 +270,21 @@ func (a *app) tick(c *ui.Context) {
 func (a *app) togglePlay() {
 	if a.playing {
 		a.playing = false
+		if a.player != nil {
+			a.player.Pause()
+		}
 		return
 	}
 	if a.playhead >= a.proj.Duration {
 		a.playhead = 0
+		a.seekPlayer()
 	}
 	a.playing = true
 	a.lastTick = time.Now()
+	if a.player != nil && a.player.Err() == nil {
+		a.player.Seek(a.position())
+		a.player.Play()
+	}
 }
 
 func (a *app) seek(delta float64) {
@@ -254,6 +295,7 @@ func (a *app) seek(delta float64) {
 	if a.playhead > a.proj.Duration {
 		a.playhead = a.proj.Duration
 	}
+	a.seekPlayer()
 	a.syncSelection()
 }
 

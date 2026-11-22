@@ -64,7 +64,7 @@ func (a *app) rail(c *ui.Context) {
 			if b.Hovered() {
 				b.Background(pal.sel)
 			}
-			b.OnClick(func() { a.toast(c, "设置", "API Key 与输出目录将在设置页配置") })
+			b.OnClick(func() { a.openSettings() })
 			b.Children(func() {
 				text(c, "设置与 API Key", 10, pal.muted)
 			})
@@ -102,12 +102,15 @@ func (a *app) projectRow(c *ui.Context, index int) {
 			a.proj = item.data
 			a.projPath = item.path
 			a.resetCursor()
+			a.openPlayerFor(a.proj.Source)
 		} else if index == 0 {
+			a.closePlayer()
 			a.proj = demoProject()
 			a.projPath = ""
 			a.playhead = 42
 			a.selectedLine = 6
 		} else {
+			a.closePlayer()
 			a.proj = demoProject()
 			a.projPath = ""
 			a.proj.Title = item.title

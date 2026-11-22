@@ -30,6 +30,7 @@ func (a *app) loadLibrary() {
 	a.proj = entries[0].Project
 	a.projPath = entries[0].Path
 	a.resetCursor()
+	a.openPlayerFor(a.proj.Source)
 }
 
 func (a *app) projectItem(p *project.Project, path string, tone int) projectItem {
@@ -152,6 +153,7 @@ func (a *app) applyImported(p *project.Project, path string, importing bool) {
 	a.proj = p
 	a.projPath = path
 	a.resetCursor()
+	a.openPlayerFor(p.Source)
 	item := a.projectItem(p, path, 0)
 	if importing || len(a.projects) == 0 {
 		a.projects = append([]projectItem{item}, a.projects...)

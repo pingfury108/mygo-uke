@@ -143,6 +143,38 @@ func TestModalsRender(t *testing.T) {
 	if _, ok := tt.Find("保存字幕"); !ok {
 		t.Fatal("line modal did not render")
 	}
+
+	a.settingsDraft = a.settings
+	a.modal = modalSettings
+	tt.Frame()
+	if _, ok := tt.Find("保存设置"); !ok {
+		t.Fatal("settings modal did not render")
+	}
+}
+
+func TestSettingsModalSaves(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	t.Setenv("MYGO_UKE_SETTINGS", path)
+	a := newApp()
+	a.openSettings()
+	a.settingsDraft.VolcanoAPIKey = "test-key"
+	a.settingsDraft.VolcanoResourceID = "test-resource"
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if err := tt.Click("保存设置"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.modal != modalNone {
+		t.Fatalf("modal = %v, want none", a.modal)
+	}
+	if a.settings.VolcanoAPIKey != "test-key" || a.asrConfig.APIKey != "test-key" {
+		t.Fatalf("settings = %+v asr = %+v", a.settings, a.asrConfig)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRenderExportFrame(t *testing.T) {
