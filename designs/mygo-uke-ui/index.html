@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyGo Uke · UI 方向稿</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <div class="eyebrow">MyGo Uke · Interface direction 01</div>
+        <h1>把一首弹唱，<br>校成一条能发的片子。</h1>
+        <p>
+          界面围绕一件事：让播放头成为唯一焦点。预览、字幕、和弦、小节高亮都由它驱动；
+          用户不需要理解时间轴细节，只需要在听到不对的地方停一下、改一下。
+        </p>
+      </div>
+      <div class="head-meta">
+        <span><strong>窗口</strong> 1440 × 900</span>
+        <span><strong>主输出</strong> 1080 × 1920</span>
+        <span><strong>平台</strong> macOS / Apple Silicon</span>
+        <span><strong>状态</strong> 方向稿 · 待选</span>
+      </div>
+    </header>
+
+    <nav class="nav-row" aria-label="设计稿导航">
+      <a class="nav-pill" href="#directions"><b>01</b> 主界面方向</a>
+      <a class="nav-pill" href="#outputs"><b>02</b> 输出画框</a>
+      <a class="nav-pill" href="#states"><b>03</b> 关键状态</a>
+      <a class="nav-pill" href="#notes"><b>04</b> 交互说明</a>
+    </nav>
+
+    <section class="brief" aria-label="设计前提">
+      <article class="brief-card">
+        <h2>设计前提</h2>
+        <ul>
+          <li>单用户、鼠标/触控板、长时间校对</li>
+          <li>竖屏是发布主路径，横屏是跟练形态</li>
+          <li>视频不出本机，只有压缩音频上传</li>
+          <li>所有输出安全区按平台硬约束预留</li>
+        </ul>
+      </article>
+      <article class="brief-card">
+        <h2>信息层级</h2>
+        <ul>
+          <li>第一层：视频画面与当前字幕</li>
+          <li>第二层：当前和弦、下一两个和弦</li>
+          <li>第三层：时间轴、待确认项、工程列表</li>
+          <li>主动作只有一个：导出成片</li>
+        </ul>
+      </article>
+      <article class="brief-card">
+        <h2>视觉系统</h2>
+        <p>
+          没有现成品牌系统。以「录音棚 + 歌本」为基调：暖琥珀只标记当前拍点与主动作，
+          其余控件退到墨色和灰阶。中文用苹方，标题与谱面用宋体形成印刷感。
+        </p>
+        <div class="swatches" aria-label="主色板">
+          <div class="swatch" style="background:#0f1013"><span>#0F1013</span></div>
+          <div class="swatch" style="background:#f3eee4"><span>#F3EEE4</span></div>
+          <div class="swatch" style="background:#f3b544"><span>#F3B544</span></div>
+          <div class="swatch" style="background:#b5482e"><span>#B5482E</span></div>
+          <div class="swatch" style="background:#1f7a74"><span>#1F7A74</span></div>
+        </div>
+      </article>
+    </section>
+
+    <div class="section-head" id="directions">
+      <div>
+        <div class="eyebrow">01 · Main desk</div>
+        <h2>主界面方向</h2>
+      </div>
+      <p>
+        同一套布局骨架，三种气质。A 把视频推前、工具退后；B 让歌词像摊开的歌本；
+        C 更接近 macOS 白天的原生工作台。
+      </p>
+    </div>
+
+    <article class="board" id="dir-a" data-screen-label="A · 录音棚">
+      <div class="board-head">
+        <span class="board-index">A</span>
+        <span class="board-title">录音棚</span>
+        <span class="board-tag">推荐</span>
+        <span class="board-note">
+          暖琥珀只给当前小节和主动作。深色外壳让视频成为唯一亮面，适合一小时以上的校对。
+        </span>
+      </div>
+      <div class="board-stage dark-stage">
+        <div class="fit fit-1440" data-fit="1440">
+          <div class="fit-inner fit-inner-1440" data-clone-theme="studio"></div>
+        </div>
+        <div class="stage-caption">
+          <span>1440 × 900 · 校对台默认态</span>
+          <span class="rule"></span>
+          <span>点击画板里的工程、节奏型、竖/横屏可试状态</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" id="dir-b" data-screen-label="B · 歌本">
+      <div class="board-head">
+        <span class="board-index">B</span>
+        <span class="board-title">歌本</span>
+        <span class="board-note">
+          纸面、宋体、朱砂红。更接近「发布物」而不是「剪辑软件」，但控件对比度会弱一些。
+        </span>
+      </div>
+      <div class="board-stage cream-stage">
+        <div class="fit fit-1440" data-fit="1440">
+          <div class="fit-inner fit-inner-1440" data-clone-theme="songbook"></div>
+        </div>
+        <div class="stage-caption">
+          <span>1440 × 900 · 歌词优先的校对台</span>
+          <span class="rule"></span>
+          <span>和弦名用衬线体，像印在谱面上</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" id="dir-c" data-screen-label="C · 日光工作台">
+      <div class="board-head">
+        <span class="board-index">C</span>
+        <span class="board-title">日光工作台</span>
+        <span class="board-note">
+          更轻、更接近 macOS 原生面板。视频仍然居中，但浮起的卡片让界面多一层「工具感」。
+        </span>
+      </div>
+      <div class="board-stage">
+        <div class="fit fit-1440" data-fit="1440">
+          <div class="fit-inner fit-inner-1440" data-clone-theme="daylight"></div>
+        </div>
+        <div class="stage-caption">
+          <span>1440 × 900 · 白天/浅色环境</span>
+          <span class="rule"></span>
+          <span>青绿色替代琥珀，适合长时间浅色阅读</span>
+        </div>
+      </div>
+    </article>
+
+    <div class="section-head" id="outputs">
+      <div>
+        <div class="eyebrow">02 · Output frames</div>
+        <h2>输出画框</h2>
+      </div>
+      <p>
+        预览和成片共用同一套叠加层布局。竖屏是「刷到就走」，横屏是「跟着练」，
+        不是同一个画面的放大缩小。
+      </p>
+    </div>
+
+    <article class="board" id="out-v" data-screen-label="竖屏输出">
+      <div class="board-head">
+        <span class="board-index">V</span>
+        <span class="board-title">竖屏 1080 × 1920</span>
+        <span class="board-note">
+          顶部 4% 留空；和弦条 6–11%；字幕 70%；右侧 120px 和底部 15% 是硬安全区。
+        </span>
+      </div>
+      <div class="board-stage dark-stage">
+        <div class="fit fit-vertical" data-fit="1080x1920">
+          <div class="fit-inner fit-inner-vertical">
+            <div class="out-v" data-default-safe>
+              <div class="video-placeholder">
+                <div class="placeholder-tag"><i></i><span>原视频 · 9:16</span></div>
+              </div>
+              <div class="chord-strip">
+                <div class="chord-chip is-current">
+                  <span class="chord-name">C</span>
+                  <span class="chord-beat">1 · 2 · 3 · 4</span>
+                </div>
+                <div class="chord-chip"><span class="chord-name">G</span></div>
+                <div class="chord-chip"><span class="chord-name">Am</span></div>
+              </div>
+              <div class="diagram-corner">
+                <div class="uke-diagram" data-frets="0,0,0,3"></div>
+                <span class="diagram-label">C</span>
+              </div>
+              <div class="subtitle-overlay"><span>晚风把蝉声吹进窗台</span></div>
+              <div class="safe-lines">
+                <i class="top"></i><i class="bottom"></i><i class="right"></i>
+                <b>顶部 4%</b><b>底部 15% 平台文案区</b><b>右侧 120px</b>
+              </div>
+              <div class="frame-badge">1080 × 1920 · 00:42</div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-caption">
+          <span>当前和弦放大，右侧指法图跟随</span>
+          <span class="rule"></span>
+          <span>字幕只做句级，不抢视频和和弦</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" id="out-h" data-screen-label="横屏输出">
+      <div class="board-head">
+        <span class="board-index">H</span>
+        <span class="board-title">横屏 1920 × 1080</span>
+        <span class="board-note">
+          人像 607 × 1080 居中，左右各 656px。左侧当前和弦，右侧完整弹唱谱。
+        </span>
+      </div>
+      <div class="board-stage dark-stage">
+        <div class="fit fit-horizontal" data-fit="1920x1080">
+          <div class="fit-inner fit-inner-horizontal">
+            <div class="out-h">
+              <div class="out-h-side out-h-left">
+                <div class="side-kicker">当前和弦</div>
+                <div class="current-chord">C</div>
+                <div class="current-meta">原调 C · Capo 0<br>第 12 小节 · 4 拍</div>
+                <div class="diagram-large">
+                  <div class="uke-diagram" data-frets="0,0,0,3"></div>
+                  <span class="diagram-label">C</span>
+                </div>
+              </div>
+              <div class="out-h-center">
+                <div class="video-placeholder">
+                  <div class="placeholder-tag"><i></i><span>人像 607 × 1080</span></div>
+                </div>
+              </div>
+              <div class="out-h-side out-h-right">
+                <div class="sheet-title">夏夜来信</div>
+                <div class="sheet-row is-current">
+                  <div class="sheet-chords"><span>C</span><span>G</span></div>
+                  <div class="sheet-lyric">晚风把蝉声吹进窗台</div>
+                </div>
+                <div class="sheet-row">
+                  <div class="sheet-chords"><span>Am</span><span>Em</span></div>
+                  <div class="sheet-lyric">我把心事弹成了海</div>
+                </div>
+                <div class="sheet-row">
+                  <div class="sheet-chords"><span>F</span><span>C</span></div>
+                  <div class="sheet-lyric">你说月色刚好 别急着离开</div>
+                </div>
+                <div class="sheet-row">
+                  <div class="sheet-chords"><span>Dm</span><span>G</span></div>
+                  <div class="sheet-lyric">这一封夏夜的信 还没拆</div>
+                </div>
+                <div class="sheet-foot">68 BPM · 4/4 · C 调 · 民谣基础</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-caption">
+          <span>左右面板各 656px，人像不裁切</span>
+          <span class="rule"></span>
+          <span>当前行用琥珀标记，完整谱面随播放滚动</span>
+        </div>
+      </div>
+    </article>
+
+    <div class="section-head" id="states">
+      <div>
+        <div class="eyebrow">03 · Key states</div>
+        <h2>关键状态</h2>
+      </div>
+      <p>
+        三个必须做对的瞬间：分析等待、改和弦、导出。都保持在当前工程上下文里，不跳二级页面。
+      </p>
+    </div>
+
+    <article class="board" id="state-analysis" data-screen-label="分析中">
+      <div class="board-head">
+        <span class="board-index">01</span>
+        <span class="board-title">分析中</span>
+        <span class="board-note">
+          让用户知道哪一步在跑、大约还要多久，并明确视频不出本机。
+        </span>
+      </div>
+      <div class="board-stage dark-stage">
+        <div class="fit fit-state" data-fit="720x460">
+          <div class="fit-inner fit-inner-state">
+            <div class="state-canvas">
+              <div class="state-bg"></div>
+              <div class="state-card">
+                <div class="state-head">
+                  <div>
+                    <div class="state-title">正在分析 · 夏夜来信</div>
+                    <div class="state-sub">先抽音轨，再同时做语音转写和和弦分析</div>
+                  </div>
+                  <button class="state-close" aria-label="取消分析">×</button>
+                </div>
+                <div class="analysis-stages">
+                  <div class="stage-row done">
+                    <span class="stage-icon">✓</span>
+                    <span>抽音轨 · 16k PCM / 128k MP3</span>
+                    <span class="stage-time">2.1s</span>
+                  </div>
+                  <div class="stage-row done">
+                    <span class="stage-icon">✓</span>
+                    <span>语音转写 · 句级时间戳</span>
+                    <span class="stage-time">18.4s</span>
+                  </div>
+                  <div class="stage-row active">
+                    <span class="stage-icon">·</span>
+                    <span>和弦分析 · BTC + beat_this</span>
+                    <span class="stage-time">约 25s</span>
+                  </div>
+                  <div class="stage-row">
+                    <span class="stage-icon">4</span>
+                    <span>小节对齐 · 按 downbeats 切分</span>
+                    <span class="stage-time">等待中</span>
+                  </div>
+                </div>
+                <div class="progress"><i></i></div>
+                <div class="state-note">视频不离开本机，只上传压缩后的音频。</div>
+                <div class="state-foot">
+                  <span class="state-note">预计还需 32 秒</span>
+                  <span>
+                    <button class="state-btn">后台运行</button>
+                    <button class="state-btn">取消</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-caption">
+          <span>四个阶段、一个总进度、一句隐私说明</span>
+          <span class="rule"></span>
+          <span>可以后台运行，不阻塞工程列表</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" id="state-chord" data-screen-label="和弦选择">
+      <div class="board-head">
+        <span class="board-index">02</span>
+        <span class="board-title">和弦选择</span>
+        <span class="board-note">
+          点小节直接改，不进入二级页面；barre 和弦明确标记，避免画出弹不了的图。
+        </span>
+      </div>
+      <div class="board-stage dark-stage">
+        <div class="fit fit-state" data-fit="720x460">
+          <div class="fit-inner fit-inner-state">
+            <div class="state-canvas">
+              <div class="state-bg"></div>
+              <div class="state-card">
+                <div class="state-head">
+                  <div>
+                    <div class="state-title">第 12 小节 · 2 拍后换和弦</div>
+                    <div class="state-sub">当前 C · 置信度 0.93 · 原谱 C/G</div>
+                  </div>
+                  <button class="state-close" aria-label="关闭和弦选择">×</button>
+                </div>
+                <div class="picker-grid">
+                  <button class="picker-chord is-selected">C<small>0 0 0 3</small></button>
+                  <button class="picker-chord">G<small>0 2 3 2</small></button>
+                  <button class="picker-chord">Am<small>2 0 0 0</small></button>
+                  <button class="picker-chord">Em<small>0 4 3 2</small></button>
+                  <button class="picker-chord">F<small>2 0 1 0</small></button>
+                  <button class="picker-chord">Dm<small>2 2 1 0</small></button>
+                  <button class="picker-chord">G7<small>0 2 1 2</small></button>
+                  <button class="picker-chord">Cmaj7<small>0 0 0 2</small></button>
+                  <button class="picker-chord">Am7<small>0 0 0 0</small></button>
+                  <button class="picker-chord">Em7<small>0 2 0 2</small></button>
+                  <button class="picker-chord">D7<small>2 2 2 0</small></button>
+                  <button class="picker-chord">Bb<small>3 2 1 1</small><small>barre</small></button>
+                </div>
+                <div class="picker-current">
+                  <div class="diagram-corner">
+                    <div class="uke-diagram" data-frets="0,0,0,3"></div>
+                    <span class="diagram-label">C</span>
+                  </div>
+                  <div class="picker-info">
+                    <b>C · 大三和弦</b>
+                    <span>按 C 形状 · 实际发声音高 C<br>标准调弦 GCEA · 不使用变调夹</span>
+                  </div>
+                </div>
+                <div class="picker-actions">
+                  <button class="link-btn">清除和弦</button>
+                  <button class="link-btn">标记为近似</button>
+                  <span class="spacer"></span>
+                  <button class="state-btn">取消</button>
+                  <button class="state-btn primary">应用</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-caption">
+          <span>12 个常用和弦一屏可见</span>
+          <span class="rule"></span>
+          <span>barre 和弦带角标，指法图实时跟随</span>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" id="state-export" data-screen-label="导出">
+      <div class="board-head">
+        <span class="board-index">03</span>
+        <span class="board-title">导出</span>
+        <span class="board-note">
+          导出前只问三件事：方向、是否烧录、质量。开始后可以离开当前页面。
+        </span>
+      </div>
+      <div class="board-stage dark-stage">
+        <div class="fit fit-state" data-fit="720x460">
+          <div class="fit-inner fit-inner-state">
+            <div class="state-canvas">
+              <div class="state-bg"></div>
+              <div class="state-card sheet">
+                <div class="state-head">
+                  <div>
+                    <div class="state-title">导出成片 · 夏夜来信</div>
+                    <div class="state-sub">字幕和曲谱会直接烧进画面，不需要二次加工</div>
+                  </div>
+                  <button class="state-close" aria-label="关闭导出">×</button>
+                </div>
+                <div class="export-grid">
+                  <button class="export-option is-selected">
+                    <i class="vshape"></i>
+                    <b>竖屏 1080 × 1920</b>
+                    <span>抖音 / 小红书 / 视频号</span>
+                  </button>
+                  <button class="export-option">
+                    <i class="hshape"></i>
+                    <b>横屏 1920 × 1080</b>
+                    <span>B 站 / YouTube</span>
+                  </button>
+                </div>
+                <div class="export-row"><span>烧录字幕和曲谱</span><b>开</b></div>
+                <div class="export-row">
+                  <span>画质</span>
+                  <select aria-label="画质">
+                    <option>高质量 · CRF 18</option>
+                    <option>标准 · CRF 22</option>
+                  </select>
+                </div>
+                <div class="export-row"><span>保存到</span><b>~/Movies/MyGo Uke/</b></div>
+                <div class="export-estimate">
+                  <span class="dot"></span>
+                  <span>预计 <b>6 分 20 秒</b> · 3:18 视频 · 1080 × 1920</span>
+                </div>
+                <div class="state-foot">
+                  <span class="state-note">导出在独立进程运行，完成后通知你。</span>
+                  <span>
+                    <button class="state-btn">取消</button>
+                    <button class="state-btn primary">开始导出</button>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="stage-caption">
+          <span>方向卡片直接展示画幅比例</span>
+          <span class="rule"></span>
+          <span>预计耗时来自当前工程时长与目标分辨率</span>
+        </div>
+      </div>
+    </article>
+
+    <div class="section-head" id="notes">
+      <div>
+        <div class="eyebrow">04 · Interaction notes</div>
+        <h2>交互说明</h2>
+      </div>
+      <p>
+        这些是 M2 校对台必须成立的五个动作。任何一条不成立，界面就会退化成「带时间轴的表格」。
+      </p>
+    </div>
+
+    <section class="brief">
+      <article class="brief-card">
+        <h2>播放头联动</h2>
+        <p>拖动时间轴，预览帧、字幕卡片、小节高亮同时更新。播放时用 30ms 轮询，不用低频事件。</p>
+      </article>
+      <article class="brief-card">
+        <h2>点小节改和弦</h2>
+        <p>点时间轴上的小节，弹出常用和弦矩阵。应用后立即重排指法图和当前和弦条。</p>
+      </article>
+      <article class="brief-card">
+        <h2>逐句改字幕</h2>
+        <p>点字幕卡片跳转到对应时间，直接改文字。改完不需要「保存」，工程自动落盘。</p>
+      </article>
+      <article class="brief-card">
+        <h2>竖/横屏切换</h2>
+        <p>只切换预览布局和导出目标，不重置工程。横屏的谱面滚动跟随同一播放头。</p>
+      </article>
+      <article class="brief-card">
+        <h2>导出可后台</h2>
+        <p>导出放独立渲染进程，关掉进度面板也继续跑。完成后再通知，不阻塞下一首。</p>
+      </article>
+      <article class="brief-card">
+        <h2>待确认优先</h2>
+        <p>低置信度小节、不可弹和弦、小节边界可疑，都汇总到状态栏，点一下跳到对应位置。</p>
+      </article>
+    </section>
+  </main>
+
+  <template id="desk-template">
+    <div class="app-window">
+      <div class="titlebar">
+        <div class="traffic"><i></i><i></i><i></i></div>
+        <div class="title-block">
+          <span class="app-mark">M</span>
+          <span class="app-name">MyGo Uke</span>
+          <span class="crumb">/</span>
+          <span class="project-name">夏夜来信</span>
+          <span class="save-state">已保存</span>
+        </div>
+        <div class="title-actions">
+          <button class="tb-btn">重新分析</button>
+          <div class="seg" data-segment>
+            <button class="on">竖屏</button>
+            <button>横屏</button>
+          </div>
+          <button class="btn-primary">
+            导出成片
+            <svg viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M6 1v6m0 0 2.4-2.4M6 7 3.6 4.6M2 9.5h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="workspace">
+        <aside class="rail">
+          <div class="rail-head">
+            <span>工程</span>
+            <button class="icon-btn" aria-label="新建工程">+</button>
+          </div>
+          <button class="project is-selected" data-project>
+            <span class="p-thumb" data-chord="C"></span>
+            <span class="p-meta"><b>夏夜来信</b><small>03:18 · C 调</small></span>
+            <span class="p-state">编辑中</span>
+          </button>
+          <button class="project" data-project>
+            <span class="p-thumb green" data-chord="G"></span>
+            <span class="p-meta"><b>晴天</b><small>04:29 · G 调</small></span>
+            <span class="p-state">已导出</span>
+          </button>
+          <button class="project" data-project>
+            <span class="p-thumb blue" data-chord="Am"></span>
+            <span class="p-meta"><b>小情歌</b><small>03:52 · F 调</small></span>
+            <span class="p-state">待校对</span>
+          </button>
+          <div class="rail-sep"></div>
+          <div class="rail-foot">
+            <div class="api-state"><i class="dot"></i><span>chordd 在线 · ASR 已配置</span></div>
+            <div class="api-state"><i class="dot warn"></i><span>3 个和弦待确认</span></div>
+            <button class="rail-action">设置与 API Key</button>
+          </div>
+        </aside>
+
+        <section class="stage-col">
+          <div class="stage-head">
+            <div>
+              <h2>夏夜来信</h2>
+              <p>3:18 · 68 BPM · 4/4 · C 调 · Capo 0</p>
+            </div>
+            <div class="stage-tools">
+              <span class="confidence"><b>89%</b> 和弦置信度</span>
+              <button class="ghost-btn" data-safe-toggle>安全区</button>
+              <button class="ghost-btn">预览</button>
+            </div>
+          </div>
+
+          <div class="preview-mat">
+            <div class="video-frame">
+              <div class="video-placeholder">
+                <div class="placeholder-tag"><i></i><span>原视频 · 9:16</span></div>
+              </div>
+              <div class="chord-strip">
+                <div class="chord-chip is-current">
+                  <span class="chord-name">C</span>
+                  <span class="chord-beat">1 · 2 · 3 · 4</span>
+                </div>
+                <div class="chord-chip"><span class="chord-name">G</span></div>
+                <div class="chord-chip"><span class="chord-name">Am</span></div>
+              </div>
+              <div class="diagram-corner">
+                <div class="uke-diagram" data-frets="0,0,0,3"></div>
+                <span class="diagram-label">C</span>
+              </div>
+              <div class="subtitle-overlay"><span>晚风把蝉声吹进窗台</span></div>
+              <div class="safe-lines">
+                <i class="top"></i><i class="bottom"></i><i class="right"></i>
+                <b>4%</b><b>15%</b><b>120px</b>
+              </div>
+              <div class="frame-badge">1080 × 1920</div>
+            </div>
+          </div>
+
+          <div class="transport">
+            <button class="play-btn" aria-label="播放">
+              <svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M3 1.6v8.8L10.4 6 3 1.6Z"></path></svg>
+            </button>
+            <div class="time">00:42<span>/ 03:18</span></div>
+            <div class="timeline">
+              <div class="bar-ruler">
+                <span>C</span><span>G</span><span class="is-current">Am</span><span>Em</span>
+                <span>F</span><span>C</span><span class="review">Dm</span><span>G</span>
+                <span>C</span><span>G</span><span>Am</span><span>Em</span>
+              </div>
+              <div class="wave" data-wave></div>
+              <div class="playhead" style="left:21.2%"></div>
+            </div>
+            <div class="transport-meta">
+              <span>68 BPM</span>
+              <span>C 调 · Capo 0</span>
+              <span>民谣基础</span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="inspector">
+          <div class="tabs">
+            <button class="on">字幕</button>
+            <button>和弦</button>
+            <button>样式</button>
+          </div>
+          <div class="inspector-body">
+            <div class="section-label"><span>逐句字幕</span><span class="count">12 句</span></div>
+            <div class="line-card is-selected">
+              <div class="line-time">00:38.2 — 00:42.0</div>
+              <div class="line-text">晚风把蝉声吹进窗台</div>
+              <div class="line-actions"><button>跳转</button><button>编辑</button></div>
+            </div>
+            <div class="line-card">
+              <div class="line-time">00:42.0 — 00:45.8</div>
+              <div class="line-text">我把心事弹成了海</div>
+              <div class="line-actions"><button>跳转</button><button>编辑</button></div>
+            </div>
+            <div class="line-card">
+              <div class="line-time">00:45.8 — 00:50.1</div>
+              <div class="line-text">你说月色刚好 别急着离开</div>
+              <div class="line-actions"><button>跳转</button><button>编辑</button></div>
+            </div>
+            <div class="line-card">
+              <div class="line-time">00:50.1 — 00:54.4</div>
+              <div class="line-text">这一封夏夜的信 还没拆</div>
+              <div class="line-actions"><button>跳转</button><button>编辑</button></div>
+            </div>
+            <div class="review-callout"><i class="dot"></i><span>3 处需要确认 · 点一下跳到对应小节</span></div>
+            <div class="section-label"><span>节奏型</span><span class="count">民谣基础</span></div>
+            <div class="pattern-row">
+              <button class="pattern is-selected">民谣基础</button>
+              <button class="pattern">下上</button>
+              <button class="pattern">三指法</button>
+              <button class="pattern">3/4 华尔兹</button>
+            </div>
+            <div class="strum">↓ &nbsp; ↓↑ &nbsp; ↑↓↑</div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="statusbar">
+        <span class="status-item"><i class="dot"></i> 分析完成 · 3 秒前</span>
+        <span class="status-item">字幕 12 句</span>
+        <span class="status-item">小节 46 · 待确认 3</span>
+        <span class="spacer"></span>
+        <span class="status-item">工程保存在本机</span>
+        <span class="status-item mono">v0.1.0</span>
+      </div>
+    </div>
+  </template>
+</body>
+</html>

@@ -1,0 +1,9 @@
+.DS_Store
+app/build/
+app/.mygo/
+chordd/.venv/
+chordd/**/__pycache__/
+chordd/.pytest_cache/
+chordd/.ruff_cache/
+chordd/models/
+*.pyc

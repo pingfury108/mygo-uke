@@ -1,0 +1,23 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "MyGo Uke UI directions": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-11-21T17:45:10.586Z",
+          "status": "needs-review",
+          "subtitle": "Three desktop directions, vertical/horizontal output frames, and key states",
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          }
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-11-21T17:45:10.594Z",
+  "updatedAt": "2026-11-21T17:45:10.594Z"
+}
