@@ -81,6 +81,12 @@ func (a *app) runExport(
 	started := time.Now()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.Remove(path)
+		}
+	}()
 	last := -1.0
 	err := videxport.Run(
 		ctx, p, source, path, orientation,
@@ -100,6 +106,7 @@ func (a *app) runExport(
 			})
 		},
 	)
+	ok = err == nil
 	mygo.RunOnMain(func() {
 		a.exportRunning = false
 		a.exportETA = 0
@@ -109,7 +116,6 @@ func (a *app) runExport(
 			a.exportProgress = 0
 			if errors.Is(err, context.Canceled) {
 				a.exportErr = "已取消导出"
-				_ = os.Remove(path)
 			} else {
 				a.exportErr = err.Error()
 			}
