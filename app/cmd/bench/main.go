@@ -24,7 +24,7 @@ func main() {
 
 	videoWidth, videoHeight := *width, *height
 	if *orientation == 1 {
-		videoWidth, videoHeight = videoHeight*607/1080, videoHeight
+		videoWidth = videoHeight * 607 / 1080
 	}
 	background := image.NewRGBA(image.Rect(0, 0, videoWidth, videoHeight))
 	draw.Draw(

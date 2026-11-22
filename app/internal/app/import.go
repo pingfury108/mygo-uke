@@ -153,6 +153,7 @@ func (a *app) startAnalysis(source string, importing bool) {
 			}
 			a.applyImported(built, path, importing)
 			a.analysis = 1
+			a.analysisAt = time.Now()
 			a.jobStage = "完成"
 			if len(built.Warnings) > 0 {
 				a.jobStage = "完成 · 字幕未识别"

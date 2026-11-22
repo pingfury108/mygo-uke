@@ -82,6 +82,8 @@ chordd 地址和火山 ASR Key 也可以在应用内「设置与 API Key」里�
 打包分发（内置 ffmpeg、思源黑体子集、图标、签名/公证）见
 `docs/packaging.md`。
 
+逐项验收状态和还需要补的真实歌曲测试见 `docs/acceptance.md`。
+
 - M0 实测记录：`docs/m0-validation.md`
 - M1 导入管线：`docs/m1-import.md`
 - M3 导出管线：`docs/m3-export.md`

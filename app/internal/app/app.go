@@ -73,6 +73,7 @@ type app struct {
 	jobStage   string
 	jobImport  bool
 	jobSource  string
+	analysisAt time.Time
 
 	chorddURL      string
 	chorddOnline   bool
@@ -114,7 +115,10 @@ func Run() error {
 				a.startAnalysis(e.Paths[0], true)
 			}
 		})
-		a.win.OnClose(func(*mygo.CloseEvent) { a.closePlayer() })
+		a.win.OnClose(func(*mygo.CloseEvent) {
+			a.closePlayer()
+			a.cancelExport()
+		})
 		a.watchChordd()
 	})
 	return mygo.App.Run()

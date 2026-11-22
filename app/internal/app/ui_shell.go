@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -189,7 +190,7 @@ func (a *app) statusbar(c *ui.Context) {
 		}).Children(func() {
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			dot(c, pal.good)
-			text(c, "分析完成 · 3 秒前", 9, pal.muted)
+			text(c, a.analysisText(), 9, pal.muted)
 		})
 		text(c, fmt.Sprintf("字幕 %d 句", len(a.proj.Lines)), 9, pal.muted)
 		text(c, fmt.Sprintf("小节 %d · 待确认 %d", len(a.proj.Bars), a.proj.ReviewCount()), 9, pal.muted)
@@ -197,6 +198,21 @@ func (a *app) statusbar(c *ui.Context) {
 		text(c, "工程保存在本机", 9, pal.faint)
 		mono(c, "v0.1.0", 9, pal.faint)
 	})
+}
+
+func (a *app) analysisText() string {
+	if a.analysisAt.IsZero() {
+		return "工程已载入"
+	}
+	age := time.Since(a.analysisAt)
+	switch {
+	case age < time.Minute:
+		return "分析完成 · 刚刚"
+	case age < time.Hour:
+		return fmt.Sprintf("分析完成 · %d 分钟前", int(age.Minutes()))
+	default:
+		return "分析完成 · " + a.analysisAt.Format("01-02 15:04")
+	}
 }
 
 func (a *app) reviewBars() int {

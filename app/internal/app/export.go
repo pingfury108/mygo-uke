@@ -106,9 +106,9 @@ func (a *app) runExport(
 		a.exportCancel = nil
 		a.exportStopping = false
 		if err != nil {
+			a.exportProgress = 0
 			if errors.Is(err, context.Canceled) {
 				a.exportErr = "已取消导出"
-				a.exportProgress = 0
 				_ = os.Remove(path)
 			} else {
 				a.exportErr = err.Error()
@@ -141,9 +141,6 @@ func (a *app) cancelExport() {
 func (a *app) exportEstimate() string {
 	if a.exportRunning && a.exportETA > 0 {
 		return "约 " + durationWords(a.exportETA) + " · 实时"
-	}
-	if a.exportProgress > 0 && a.exportProgress < 1 && a.exportETA > 0 {
-		return "约 " + durationWords(a.exportETA)
 	}
 	if a.proj == nil || a.proj.Duration <= 0 {
 		return "按导出进度更新"
