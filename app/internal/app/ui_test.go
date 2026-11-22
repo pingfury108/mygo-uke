@@ -42,6 +42,13 @@ func TestStudioInteractions(t *testing.T) {
 	if _, ok := tt.Find("叠加层"); !ok {
 		t.Fatal("style panel did not render")
 	}
+	if err := tt.Click("朱砂现场"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.proj.Style.Accent != "#B5482E" {
+		t.Fatalf("preset accent = %q", a.proj.Style.Accent)
+	}
 
 	if err := tt.Click("安全区"); err != nil {
 		t.Fatal(err)
@@ -93,6 +100,24 @@ func TestStudioInteractions(t *testing.T) {
 	}
 	if _, ok := tt.Find("保存字幕"); !ok {
 		t.Fatal("new line modal did not render")
+	}
+}
+
+func TestTimelineDragScrubs(t *testing.T) {
+	a := newApp()
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	rect, ok := tt.Find("时间轴")
+	if !ok {
+		t.Fatal("timeline not found")
+	}
+	y := rect.Y + rect.H/2
+	tt.Press(rect.X+rect.W*0.2, y)
+	tt.Move(rect.X+rect.W*0.7, y)
+	tt.Release(rect.X+rect.W*0.7, y)
+	want := a.proj.Duration * 0.7
+	if diff := a.playhead - want; diff < -2 || diff > 2 {
+		t.Fatalf("playhead = %.2f, want %.2f", a.playhead, want)
 	}
 }
 

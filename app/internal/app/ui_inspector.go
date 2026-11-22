@@ -256,6 +256,31 @@ func (a *app) styleTab(c *ui.Context) {
 	sliderRow(c, "和弦字号", &a.proj.Style.ChordSize, a.saveCurrent)
 	sliderRow(c, "字幕字号", &a.proj.Style.SubSize, a.saveCurrent)
 
+	sectionLabel(c, "样式预设", "一键套用")
+	ui.Row(c).Gap(6).Children(func() {
+		for i, preset := range stylePresets {
+			index := i
+			item := preset
+			on := a.proj.Style.Accent == item.Accent &&
+				a.proj.Style.ChordSize == item.ChordSize &&
+				a.proj.Style.SubSize == item.SubSize
+			b := ui.ButtonBase(c).Grow(1).Height(30).Radius(7).Center().
+				Label(item.Name).FocusRing(false)
+			if on {
+				b.Background(pal.sel).Border(1, pal.accentLine)
+			} else {
+				b.Background(pal.card).Border(1, pal.line)
+			}
+			if b.Hovered() && !on {
+				b.Background(pal.panel2)
+			}
+			b.OnClick(func() { a.applyStylePreset(c, index) })
+			b.Children(func() {
+				text(c, item.Name, 9.5, pal.text)
+			})
+		}
+	})
+
 	sectionLabel(c, "强调色", a.proj.Style.Accent)
 	ui.Row(c).Gap(7).Children(func() {
 		for _, item := range []struct {

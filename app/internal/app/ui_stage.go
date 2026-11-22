@@ -525,7 +525,7 @@ func (a *app) timeline(c *ui.Context) {
 			}
 		})
 	})
-	if tl.Clicked() {
+	if tl.Clicked() || tl.Pressed() {
 		if x, _, ok := tl.PointerPosition(); ok {
 			bounds := tl.Bounds()
 			if bounds.W > 0 {
