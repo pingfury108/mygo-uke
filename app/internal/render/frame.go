@@ -468,6 +468,9 @@ func inkFor(hex string) ui.Color {
 	return ui.Hex("#241A08")
 }
 
+// InkOn returns readable text for an accent background.
+func InkOn(hex string) ui.Color { return inkFor(hex) }
+
 func keyOf(p *project.Project) string {
 	if p == nil || p.Key == "" {
 		return "—"

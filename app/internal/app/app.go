@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -32,6 +31,7 @@ type app struct {
 	win *mygo.Window
 
 	proj     *project.Project
+	projPath string
 	projects []projectItem
 	selected int
 	tab      int
@@ -289,15 +289,16 @@ func (a *app) barAt(t float64) (score.Bar, int, bool) {
 }
 
 func (a *app) save() {
-	dir, err := mygo.App.Path(mygo.PathUserData)
-	if err != nil {
+	if a.proj == nil || a.projPath == "" {
 		return
 	}
-	path := filepath.Join(dir, "projects", a.proj.Title+".json")
-	if err := project.Save(path, a.proj); err != nil {
+	if err := project.Save(a.projPath, a.proj); err != nil {
 		log.Printf("save project: %v", err)
-		return
 	}
+}
+
+func (a *app) saveCurrent() {
+	a.save()
 }
 
 func (a *app) toast(c *ui.Context, title, description string) {

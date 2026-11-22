@@ -55,6 +55,7 @@ func (a *app) saveLine(c *ui.Context) {
 	}
 	line := project.Line{Start: start, End: end, Text: text}
 	a.selectedLine = a.proj.SetLine(a.lineIndex, line)
+	a.saveCurrent()
 	a.playhead = start
 	a.modal = modalNone
 	a.toast(c, "字幕已保存", fmt.Sprintf("%s — %s", timeText(start), timeText(end)))
@@ -68,6 +69,7 @@ func (a *app) deleteLine(c *ui.Context) {
 	if a.selectedLine >= len(a.proj.Lines) {
 		a.selectedLine = max(0, len(a.proj.Lines)-1)
 	}
+	a.saveCurrent()
 	a.modal = modalNone
 	a.toast(c, "字幕已删除", "")
 }

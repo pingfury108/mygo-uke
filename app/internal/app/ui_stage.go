@@ -6,9 +6,21 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"mygo-uke/internal/render"
 	"mygo-uke/internal/score"
 	"mygo-uke/internal/uke"
 )
+
+func (a *app) overlayAccent() ui.Color {
+	if a.proj != nil && a.proj.Style.Accent != "" {
+		return ui.Hex(a.proj.Style.Accent)
+	}
+	return pal.accent
+}
+
+func (a *app) overlayInk() ui.Color {
+	return render.InkOn(a.proj.Style.Accent)
+}
 
 func (a *app) stage(c *ui.Context) {
 	ui.Column(c).Grow(1).Background(pal.stage).Children(func() {
@@ -33,7 +45,11 @@ func (a *app) stageHead(c *ui.Context) {
 			badgeRow := ui.Row(c).Padding(4, 8, 4, 8).Radius(999).Background(pal.warnBG).
 				AlignItems(ui.Center).Gap(5)
 			badgeRow.Children(func() {
-				label(c, "89%", 9.5, pal.text, 650)
+				value := "—"
+				if confidence := a.avgConfidence(); confidence > 0 {
+					value = fmt.Sprintf("%.0f%%", confidence*100)
+				}
+				label(c, value, 9.5, pal.text, 650)
 				text(c, "和弦置信度", 9.5, pal.muted)
 			})
 			ghostButton(c, "安全区", func() { a.safe = !a.safe })
@@ -42,6 +58,23 @@ func (a *app) stageHead(c *ui.Context) {
 			})
 		})
 	})
+}
+
+func (a *app) avgConfidence() float64 {
+	if a.proj == nil {
+		return 0
+	}
+	sum, count := 0.0, 0
+	for _, bar := range a.proj.Bars {
+		if bar.Conf > 0 {
+			sum += bar.Conf
+			count++
+		}
+	}
+	if count == 0 {
+		return 0
+	}
+	return sum / float64(count)
 }
 
 func (a *app) preview(c *ui.Context) {
@@ -134,7 +167,7 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 					if shape, ok := uke.Shape(chord, a.proj.Capo); ok {
 						shapeLabel = shape.Name
 						shapeBox.Draw(func(p *ui.Painter, r ui.Rect) {
-							drawDiagram(p, r, shape)
+							drawDiagram(p, r, shape, a.overlayAccent())
 						})
 					}
 				}
@@ -197,7 +230,7 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 	})
 	frame.Children(func() {
 		a.chordStrip(c, bar, w, h)
-		diagramCorner(c, bar, w, h, a.proj.Capo)
+		diagramCorner(c, bar, w, h, a.proj.Capo, a.overlayAccent())
 		if hasLine {
 			subtitleOverlay(c, line.Text, w, h)
 		}
@@ -304,10 +337,10 @@ func (a *app) chordChip(c *ui.Context, chord string, current bool, h float32) {
 		chord = "—"
 	}
 	if current {
-		chip := ui.Column(c).Padding(7, 10, 6, 10).Radius(7).Background(pal.accent).
+		chip := ui.Column(c).Padding(7, 10, 6, 10).Radius(7).Background(a.overlayAccent()).
 			Shadow(0, 10, 24, 0, ui.RGBA(0, 0, 0, 0.24))
 		chip.Children(func() {
-			label(c, chord, 22, pal.accentInk, 720).SingleLine()
+			label(c, chord, 22, a.overlayInk(), 720).SingleLine()
 			mono(c, "1 · 2 · 3 · 4", 6.5, ui.RGBA(29, 21, 7, 0.66))
 		})
 		return
@@ -320,7 +353,7 @@ func (a *app) chordChip(c *ui.Context, chord string, current bool, h float32) {
 	})
 }
 
-func diagramCorner(c *ui.Context, bar score.Bar, w, h float32, capo int) {
+func diagramCorner(c *ui.Context, bar score.Bar, w, h float32, capo int, accent ui.Color) {
 	labelValue := ""
 	if len(bar.Chords) > 0 {
 		labelValue = bar.Chords[0]
@@ -338,7 +371,7 @@ func diagramCorner(c *ui.Context, bar score.Bar, w, h float32, capo int) {
 		diagram := ui.Box(c).Height(62).FillWidth()
 		diagram.Draw(func(p *ui.Painter, r ui.Rect) {
 			if ok {
-				drawDiagram(p, r, shape)
+				drawDiagram(p, r, shape, accent)
 			} else {
 				p.Text(r.X+r.W/2-8, r.Y+r.H/2, "?", 16, pal.faint)
 			}
@@ -347,7 +380,7 @@ func diagramCorner(c *ui.Context, bar score.Bar, w, h float32, capo int) {
 	})
 }
 
-func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering) {
+func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color) {
 	left := r.X + r.W*0.1
 	right := r.X + r.W*0.9
 	top := r.Y + r.H*0.18
@@ -380,7 +413,7 @@ func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering) {
 			p.Stroke(ui.Rect{X: x - 2.5, Y: top - 8, W: 5, H: 5}, ui.RGBA(255, 248, 234, 0.72), 2.5, 1)
 		case fret >= base && fret <= base+3:
 			cy := top + spanY*(float32(fret-base)+0.5)
-			p.Fill(ui.Rect{X: x - 3, Y: cy - 3, W: 6, H: 6}, pal.accent, 3)
+			p.Fill(ui.Rect{X: x - 3, Y: cy - 3, W: 6, H: 6}, accent, 3)
 		}
 	}
 }

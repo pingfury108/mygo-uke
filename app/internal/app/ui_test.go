@@ -1,6 +1,8 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -172,6 +174,40 @@ func TestRenderImportedProjectWithoutLines(t *testing.T) {
 	}
 	if _, ok := tt.Find("0 句"); !ok {
 		t.Fatal("empty subtitle list did not render")
+	}
+}
+
+func TestSaveUsesProjectPath(t *testing.T) {
+	p := demoProject()
+	path := filepath.Join(t.TempDir(), "project.json")
+	if err := project.Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	a.proj = p
+	a.projPath = path
+	p.Lines[0].Text = "改过的句子"
+	a.save()
+
+	loaded, err := project.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Lines[0].Text != "改过的句子" {
+		t.Fatalf("saved text = %q", loaded.Lines[0].Text)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPatternAndConfidence(t *testing.T) {
+	if patternIndex("waltz-3") != 3 || patternID(2) != "fingerpick-3" {
+		t.Fatalf("pattern mapping = %q / %q", patternID(2), patternID(patternIndex("waltz-3")))
+	}
+	a := newApp()
+	if a.avgConfidence() <= 0 {
+		t.Fatal("demo project should expose a real average confidence")
 	}
 }
 

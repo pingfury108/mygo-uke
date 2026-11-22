@@ -172,7 +172,7 @@ func (a *app) chordModal(c *ui.Context) {
 				preview.Draw(func(p *ui.Painter, r ui.Rect) {
 					if chord, ok := uke.Normalize(a.chordChoice); ok {
 						if shape, ok := uke.Shape(chord, a.proj.Capo); ok {
-							drawDiagram(p, r, shape)
+							drawDiagram(p, r, shape, a.overlayAccent())
 							p.Text(r.X+r.W/2-18, r.Y+r.H-4, shape.Name, 9, pal.muted)
 							return
 						}
@@ -191,6 +191,7 @@ func (a *app) chordModal(c *ui.Context) {
 					if a.chordBar >= 0 && a.chordBar < len(a.proj.Bars) {
 						a.proj.Bars[a.chordBar].Chords = []string{a.chordChoice}
 						a.proj.Bars[a.chordBar].NeedsReview = false
+						a.saveCurrent()
 						a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, a.chordChoice))
 					}
 					a.modal = modalNone

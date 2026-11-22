@@ -28,6 +28,7 @@ func (a *app) loadLibrary() {
 	a.projects = items
 	a.selected = 0
 	a.proj = entries[0].Project
+	a.projPath = entries[0].Path
 	a.resetCursor()
 }
 
@@ -149,6 +150,7 @@ func (a *app) startAnalysis(source string, importing bool) {
 
 func (a *app) applyImported(p *project.Project, path string, importing bool) {
 	a.proj = p
+	a.projPath = path
 	a.resetCursor()
 	item := a.projectItem(p, path, 0)
 	if importing || len(a.projects) == 0 {
@@ -171,6 +173,7 @@ func (a *app) resetCursor() {
 		a.playhead = a.proj.Downbeats[0]
 	}
 	a.selectedLine = 0
+	a.pattern = patternIndex(a.proj.Pattern)
 	if len(a.proj.Chords) > 0 {
 		a.chordChoice = a.proj.Chords[0].Label
 	}

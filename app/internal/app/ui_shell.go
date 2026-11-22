@@ -100,13 +100,16 @@ func (a *app) projectRow(c *ui.Context, index int) {
 		a.selected = index
 		if item.data != nil {
 			a.proj = item.data
+			a.projPath = item.path
 			a.resetCursor()
 		} else if index == 0 {
 			a.proj = demoProject()
+			a.projPath = ""
 			a.playhead = 42
 			a.selectedLine = 6
 		} else {
 			a.proj = demoProject()
+			a.projPath = ""
 			a.proj.Title = item.title
 			a.playhead = 42
 		}

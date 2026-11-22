@@ -145,7 +145,11 @@ func (a *app) subtitleTab(c *ui.Context) {
 			if b.Hovered() && !on {
 				b.Background(pal.panel2)
 			}
-			b.OnClick(func() { a.pattern = index })
+			b.OnClick(func() {
+				a.pattern = index
+				a.proj.Pattern = patternID(index)
+				a.saveCurrent()
+			})
 			b.Children(func() {
 				color := pal.muted
 				weight := 500
@@ -181,6 +185,7 @@ func (a *app) chordTab(c *ui.Context) {
 				}
 				a.proj.Bars[index].Chords[0] = chord
 				a.proj.Bars[index].NeedsReview = false
+				a.saveCurrent()
 				a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", index+1, chord))
 			})
 			b.Children(func() {
@@ -267,6 +272,7 @@ func (a *app) styleTab(c *ui.Context) {
 			}
 			b.OnClick(func() {
 				a.proj.Style.Accent = it.hex
+				a.saveCurrent()
 				a.toast(c, "强调色已更新", it.name)
 			})
 			b.Children(func() {
@@ -287,6 +293,7 @@ func (a *app) styleTab(c *ui.Context) {
 		ghostButton(c, "−", func() {
 			if a.proj.Capo > 0 {
 				a.proj.Capo--
+				a.saveCurrent()
 			}
 		})
 		ui.Column(c).Grow(1).Gap(1).Children(func() {
@@ -296,6 +303,7 @@ func (a *app) styleTab(c *ui.Context) {
 		ghostButton(c, "+", func() {
 			if a.proj.Capo < 7 {
 				a.proj.Capo++
+				a.saveCurrent()
 			}
 		})
 	})
@@ -370,6 +378,24 @@ func (a *app) patternName() string {
 	default:
 		return "民谣基础"
 	}
+}
+
+var patternIDs = []string{"folk-basic", "down-up", "fingerpick-3", "waltz-3"}
+
+func patternIndex(id string) int {
+	for i, value := range patternIDs {
+		if value == id {
+			return i
+		}
+	}
+	return 0
+}
+
+func patternID(index int) string {
+	if index < 0 || index >= len(patternIDs) {
+		return patternIDs[0]
+	}
+	return patternIDs[index]
 }
 
 func (a *app) strumText() string {
