@@ -212,8 +212,8 @@ func scoreBarAt(a *app, i int) score.Bar {
 
 func (a *app) analysisModal(c *ui.Context) {
 	open := true
-	title := "分析和弦"
-	detail := "抽取音轨 → beat_this / BTC → 小节"
+	title := "分析工程"
+	detail := "抽取音轨 → 和弦 / 字幕并行 → 小节"
 	switch {
 	case a.jobErr != "":
 		title = "分析失败"
@@ -229,7 +229,15 @@ func (a *app) analysisModal(c *ui.Context) {
 		ui.Column(c).Width(460).Gap(12).Children(func() {
 			modalTitle(c, title, detail)
 			stageRow(c, "1", "抽取音轨", "ffmpeg · 128k mono mp3", a.analysis >= 0.16, "")
-			stageRow(c, "2", "语音转写", "火山 ASR 待接入 · 可先手动填词", false, "待接入")
+			asrDetail := "未配置 MYGO_UKE_VOLCANO_API_KEY · 跳过"
+			asrStatus := "跳过"
+			asrDone := false
+			if a.asrConfig.APIKey != "" {
+				asrDetail = "火山流式 ASR · 句级 utterances"
+				asrStatus = "并行"
+				asrDone = a.analysis >= 1
+			}
+			stageRow(c, "2", "语音转写", asrDetail, asrDone, asrStatus)
 			stageRow(c, "3", "和弦分析", "BTC large-voca + beat_this", a.analysis >= 0.88, "")
 			stageRow(c, "4", "小节对齐", fmt.Sprintf("%d bars", len(a.proj.Bars)), a.analysis >= 1, "")
 			progress := a.analysis

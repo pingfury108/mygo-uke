@@ -23,6 +23,7 @@ const (
 	modalExport
 	modalChords
 	modalAnalysis
+	modalLine
 )
 
 // app is the state every view reads and changes. It lives on the main
@@ -55,6 +56,10 @@ type app struct {
 	exportFormat   int
 	chordBar       int
 	chordChoice    string
+	lineIndex      int
+	lineText       string
+	lineStart      float64
+	lineEnd        float64
 
 	jobRunning bool
 	jobErr     string
@@ -104,6 +109,7 @@ func newApp() *app {
 		playhead:     42.0,
 		selectedLine: 6,
 		chordChoice:  "C",
+		lineIndex:    -1,
 		chorddURL:    chorddBaseURL(),
 		exportSRT:    true,
 		asrConfig:    volcanoConfig(),
@@ -181,6 +187,8 @@ func (a *app) view(c *ui.Context) {
 		a.chordModal(c)
 	case modalAnalysis:
 		a.analysisModal(c)
+	case modalLine:
+		a.lineModal(c)
 	}
 }
 

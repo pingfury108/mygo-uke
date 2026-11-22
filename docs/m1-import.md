@@ -58,7 +58,8 @@ MYGO_UKE_SOURCE=/path/song.mp3 go test ./internal/pipeline \
 
 ## ASR 行为
 
-- 未配置 Key：跳过转写，导入照常完成，`lines` 为空。
+- 未配置 Key：跳过转写，导入照常完成，`lines` 为空；可在字幕面板
+  「添加」/「编辑选中」手动补词和时间。
 - 配置 Key：ASR 与 chordd 并行；转写失败不会丢和弦，失败原因写入
   `project.json` 的 `warnings`，界面状态显示「完成 · 字幕未识别」。
 - 只接受服务端返回的句级 `result.utterances[]`；没有句子时间不会伪造成整首一条。

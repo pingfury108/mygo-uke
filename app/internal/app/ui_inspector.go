@@ -55,7 +55,21 @@ func (a *app) inspector(c *ui.Context) {
 }
 
 func (a *app) subtitleTab(c *ui.Context) {
-	sectionLabel(c, "逐句字幕", fmt.Sprintf("%d 句", len(a.proj.Lines)))
+	ui.Row(c).AlignItems(ui.Center).PaddingY(4).Children(func() {
+		label(c, "逐句字幕", 10, pal.muted, 600)
+		mono(c, fmt.Sprintf("%d 句", len(a.proj.Lines)), 9, pal.faint).Margin(0, 6, 0, 0)
+		ui.Box(c).Grow(1)
+		if len(a.proj.Lines) > 0 {
+			ghostButton(c, "编辑选中", func() { a.openLineEditor(a.selectedLine) })
+		}
+		ghostButton(c, "添加", func() { a.openLineEditor(-1) })
+	})
+	if len(a.proj.Lines) == 0 {
+		ui.Row(c).Padding(9, 10, 9, 10).Radius(8).Background(pal.card).
+			Children(func() {
+				text(c, "还没有字幕：点「添加」手填，或配置火山 Key 后重新分析", 9, pal.faint)
+			})
+	}
 	for i, line := range a.proj.Lines {
 		index := i
 		l := line
@@ -86,8 +100,7 @@ func (a *app) subtitleTab(c *ui.Context) {
 				mono(c, fmt.Sprintf("%s — %s", timeText(l.Start), timeText(l.End)), 8.5, pal.faint)
 				label(c, l.Text, 12, pal.text, 500)
 				ui.Row(c).Gap(10).Children(func() {
-					text(c, "跳转", 9, pal.muted)
-					text(c, "编辑", 9, pal.muted)
+					text(c, "点卡片跳到这句", 9, pal.muted)
 					if l.NeedsReview {
 						ui.Box(c).Grow(1)
 						text(c, "待确认", 8.5, pal.warn)

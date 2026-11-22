@@ -51,3 +51,26 @@ func TestListMissingLibraryIsEmpty(t *testing.T) {
 		t.Fatalf("entries = %v, err = %v", entries, err)
 	}
 }
+
+func TestSetLineUpsertsAndSorts(t *testing.T) {
+	p := New("字幕")
+	p.Lines = []Line{
+		{Start: 5, End: 8, Text: "第二句"},
+		{Start: 10, End: 12, Text: "第三句"},
+	}
+	if got := p.SetLine(1, Line{Start: 1, End: 2, Text: "第一句"}); got != 0 {
+		t.Fatalf("updated index = %d", got)
+	}
+	if len(p.Lines) != 2 || p.Lines[0].Text != "第一句" || p.Lines[1].Text != "第二句" {
+		t.Fatalf("lines = %#v", p.Lines)
+	}
+	if got := p.SetLine(9, Line{Start: 13, End: 14, Text: "第四句"}); got != 2 {
+		t.Fatalf("appended index = %d", got)
+	}
+	if !p.DeleteLine(1) || len(p.Lines) != 2 || p.Lines[1].Text != "第四句" {
+		t.Fatalf("delete = %#v", p.Lines)
+	}
+	if p.DeleteLine(9) {
+		t.Fatal("out-of-range delete should fail")
+	}
+}

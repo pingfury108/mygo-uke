@@ -76,6 +76,21 @@ func TestStudioInteractions(t *testing.T) {
 	if a.modal != modalNone {
 		t.Fatalf("modal = %v, want none", a.modal)
 	}
+
+	if err := tt.Click("字幕"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("添加"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.modal != modalLine || a.lineIndex != -1 {
+		t.Fatalf("modal = %v, lineIndex = %d", a.modal, a.lineIndex)
+	}
+	if _, ok := tt.Find("保存字幕"); !ok {
+		t.Fatal("new line modal did not render")
+	}
 }
 
 func TestStudioAtMinimumSize(t *testing.T) {
@@ -114,8 +129,17 @@ func TestModalsRender(t *testing.T) {
 	a.modal = modalAnalysis
 	a.analysis = 0.5
 	tt.Frame()
-	if _, ok := tt.Find("分析和弦"); !ok {
+	if _, ok := tt.Find("分析工程"); !ok {
 		t.Fatal("analysis modal did not render")
+	}
+
+	a.modal = modalLine
+	a.lineIndex = 0
+	a.lineText = "改过的字幕"
+	a.lineStart, a.lineEnd = 42, 45
+	tt.Frame()
+	if _, ok := tt.Find("保存字幕"); !ok {
+		t.Fatal("line modal did not render")
 	}
 }
 

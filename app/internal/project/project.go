@@ -96,6 +96,34 @@ func (p *Project) ReviewCount() int {
 	return n
 }
 
+// SetLine updates the line at index, or appends when index is out of range,
+// then keeps the list in timeline order. It returns the line's new index.
+func (p *Project) SetLine(index int, line Line) int {
+	if index >= 0 && index < len(p.Lines) {
+		p.Lines[index] = line
+	} else {
+		p.Lines = append(p.Lines, line)
+	}
+	sort.SliceStable(p.Lines, func(i, j int) bool {
+		return p.Lines[i].Start < p.Lines[j].Start
+	})
+	for i, item := range p.Lines {
+		if item.Start == line.Start && item.End == line.End && item.Text == line.Text {
+			return i
+		}
+	}
+	return 0
+}
+
+// DeleteLine removes one line and reports whether it existed.
+func (p *Project) DeleteLine(index int) bool {
+	if index < 0 || index >= len(p.Lines) {
+		return false
+	}
+	p.Lines = append(p.Lines[:index], p.Lines[index+1:]...)
+	return true
+}
+
 // Save writes the project atomically, so a crash cannot leave half a file.
 func Save(path string, p *Project) error {
 	if p == nil {
