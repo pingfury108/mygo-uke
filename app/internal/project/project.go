@@ -42,6 +42,7 @@ type Project struct {
 	Chords        []score.ChordSegment `json:"chords"`
 	Bars          []score.Bar          `json:"bars"`
 	Lines         []Line               `json:"lines"`
+	LinesEdited   bool                 `json:"linesEdited,omitempty"`
 	Warnings      []string             `json:"warnings,omitempty"`
 	Pattern       string               `json:"pattern"`
 	Style         Style                `json:"style"`
@@ -166,6 +167,53 @@ func Load(path string) (*Project, error) {
 		p.Pattern = "folk-basic"
 	}
 	return &p, nil
+}
+
+// Merge keeps the user's edits on top of a fresh analysis. Chords the user
+// picked survive by overlapping bar; subtitle lines survive as a set once
+// the user edited or deleted any of them.
+func Merge(edited, built *Project) *Project {
+	if edited == nil || built == nil {
+		return built
+	}
+	built.Title = edited.Title
+	built.Capo = edited.Capo
+	built.Pattern = edited.Pattern
+	built.Style = edited.Style
+	if edited.LinesEdited {
+		built.Lines = append([]Line(nil), edited.Lines...)
+		built.LinesEdited = true
+	}
+	for i := range built.Bars {
+		for _, bar := range edited.Bars {
+			if !bar.Manual || !overlaps(bar, built.Bars[i]) {
+				continue
+			}
+			built.Bars[i].Chords = append([]string(nil), bar.Chords...)
+			built.Bars[i].Manual = true
+			built.Bars[i].NeedsReview = false
+			built.Bars[i].AltLabel = ""
+			built.Bars[i].Approx = false
+			break
+		}
+	}
+	return built
+}
+
+func overlaps(a, b score.Bar) bool {
+	return a.Start < b.End && b.Start < a.End
+}
+
+// Delete removes one project directory. It only accepts a project.json path,
+// so a bad path cannot take an unrelated directory with it.
+func Delete(path string) error {
+	if filepath.Base(path) != "project.json" {
+		return errors.New("project path must end in project.json")
+	}
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Dir(path))
 }
 
 // Root is the local project library, overridable for tests and portable use.

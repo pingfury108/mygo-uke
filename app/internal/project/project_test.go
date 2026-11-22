@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"mygo-uke/internal/score"
 )
 
 func TestSaveLoadAndList(t *testing.T) {
@@ -72,5 +74,68 @@ func TestSetLineUpsertsAndSorts(t *testing.T) {
 	}
 	if p.DeleteLine(9) {
 		t.Fatal("out-of-range delete should fail")
+	}
+}
+
+func TestMergeKeepsEdits(t *testing.T) {
+	edited := New("我的歌")
+	edited.Capo = 3
+	edited.Pattern = "waltz-3"
+	edited.Style.Accent = "#B5482E"
+	edited.LinesEdited = true
+	edited.Lines = []Line{{Start: 0, End: 3, Text: "改过的字幕"}}
+	edited.Bars = []score.Bar{
+		{Start: 0, End: 3, Chords: []string{"G"}, Manual: true},
+		{Start: 3, End: 6, Chords: []string{"Em"}},
+	}
+
+	built := New("自动标题")
+	built.Tempo = 120
+	built.Lines = []Line{{Start: 0, End: 3, Text: "ASR 原句"}}
+	built.Bars = []score.Bar{
+		{Start: 0, End: 3, Chords: []string{"C"}},
+		{Start: 3, End: 6, Chords: []string{"Am"}},
+	}
+
+	merged := Merge(edited, built)
+	if merged.Title != "我的歌" || merged.Capo != 3 || merged.Pattern != "waltz-3" {
+		t.Fatalf("merged = %+v", merged)
+	}
+	if merged.Style.Accent != "#B5482E" {
+		t.Fatalf("accent = %q", merged.Style.Accent)
+	}
+	if len(merged.Lines) != 1 || merged.Lines[0].Text != "改过的字幕" {
+		t.Fatalf("lines = %+v", merged.Lines)
+	}
+	if merged.Bars[0].Chords[0] != "G" || !merged.Bars[0].Manual {
+		t.Fatalf("manual bar = %+v", merged.Bars[0])
+	}
+	if merged.Bars[1].Chords[0] != "Am" {
+		t.Fatalf("fresh bar = %+v", merged.Bars[1])
+	}
+}
+
+func TestMergeUsesFreshLinesWithoutEdits(t *testing.T) {
+	edited := New("歌")
+	edited.Lines = []Line{{Start: 0, End: 3, Text: "旧 ASR"}}
+	built := New("歌")
+	built.Lines = []Line{{Start: 0, End: 3, Text: "新 ASR"}}
+
+	merged := Merge(edited, built)
+	if merged.Lines[0].Text != "新 ASR" {
+		t.Fatalf("lines = %+v", merged.Lines)
+	}
+}
+
+func TestDeleteRejectsForeignPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keep.txt")
+	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := Delete(path); err == nil {
+		t.Fatal("Delete accepted a non-project path")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
 	}
 }

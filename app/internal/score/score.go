@@ -27,6 +27,7 @@ type Bar struct {
 	Chords      []string `json:"chords"`
 	Conf        float64  `json:"conf"`
 	NeedsReview bool     `json:"needsReview,omitempty"`
+	Manual      bool     `json:"manual,omitempty"`
 	AltLabel    string   `json:"altLabel,omitempty"`
 	Approx      bool     `json:"approx,omitempty"`
 }

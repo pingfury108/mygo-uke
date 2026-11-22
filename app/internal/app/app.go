@@ -24,6 +24,7 @@ const (
 	modalAnalysis
 	modalLine
 	modalSettings
+	modalProject
 )
 
 // app is the state every view reads and changes. It lives on the main
@@ -38,7 +39,6 @@ type app struct {
 	tab      int
 
 	orientation int
-	safe        bool
 	playing     bool
 	muted       bool
 	playhead    float64
@@ -53,6 +53,9 @@ type app struct {
 	analysis       float64
 	exportRunning  bool
 	exportProgress float64
+	exportETA      time.Duration
+	exportCancel   context.CancelFunc
+	exportStopping bool
 	exportErr      string
 	exportPath     string
 	exportNote     string
@@ -80,6 +83,11 @@ type app struct {
 	settingsDraft  settings
 	settingsErr    string
 	chorddWake     chan struct{}
+
+	projectIndex   int
+	projectTitle   string
+	projectErr     string
+	projectConfirm bool
 }
 
 // Run starts the native MyGo window.
@@ -206,6 +214,8 @@ func (a *app) view(c *ui.Context) {
 		a.lineModal(c)
 	case modalSettings:
 		a.settingsModal(c)
+	case modalProject:
+		a.projectModal(c)
 	}
 }
 

@@ -97,26 +97,7 @@ func (a *app) projectRow(c *ui.Context, index int) {
 		row.Background(pal.sel)
 	}
 	row.OnClick(func() {
-		a.selected = index
-		if item.data != nil {
-			a.proj = item.data
-			a.projPath = item.path
-			a.resetCursor()
-			a.openPlayerFor(a.proj.Source)
-		} else if index == 0 {
-			a.closePlayer()
-			a.proj = demoProject()
-			a.projPath = ""
-			a.playhead = 42
-			a.selectedLine = 6
-		} else {
-			a.closePlayer()
-			a.proj = demoProject()
-			a.projPath = ""
-			a.proj.Title = item.title
-			a.playhead = 42
-		}
-		a.playing = false
+		a.selectProject(index)
 	})
 	row.DrawOver(func(p *ui.Painter, r ui.Rect) {
 		if selected {
@@ -130,6 +111,9 @@ func (a *app) projectRow(c *ui.Context, index int) {
 				label(c, item.title, 11.5, pal.text, 600)
 				mono(c, item.meta, 9, pal.muted)
 			})
+			if item.data != nil || item.path != "" {
+				iconButton(c, "⋯", "工程设置", func() { a.openProjectModal(index) })
+			}
 			stateColor := pal.faint
 			if selected {
 				stateColor = pal.accent
@@ -137,6 +121,33 @@ func (a *app) projectRow(c *ui.Context, index int) {
 			text(c, item.state, 8.5, stateColor).SingleLine()
 		})
 	})
+}
+
+func (a *app) selectProject(index int) {
+	if index < 0 || index >= len(a.projects) {
+		return
+	}
+	a.selected = index
+	item := a.projects[index]
+	if item.data != nil {
+		a.proj = item.data
+		a.projPath = item.path
+		a.resetCursor()
+		a.openPlayerFor(a.proj.Source)
+	} else {
+		a.closePlayer()
+		a.proj = demoProject()
+		a.projPath = ""
+		if index > 0 {
+			a.proj.Title = item.title
+		}
+		a.playhead = 42
+		a.selectedLine = 6
+	}
+	a.playing = false
+	if a.player != nil {
+		a.player.Pause()
+	}
 }
 
 func projectThumb(c *ui.Context, item projectItem) {

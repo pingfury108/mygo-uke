@@ -26,9 +26,15 @@ func (a *app) exportModal(c *ui.Context) {
 	switch {
 	case a.exportErr != "":
 		title = "导出失败"
+		if a.exportErr == "已取消导出" {
+			title = "导出已取消"
+		}
 		detail = a.exportErr
 	case a.exportRunning:
 		title = "正在导出"
+		if a.exportStopping {
+			title = "正在取消"
+		}
 		detail = "H.264 · AAC · 逐帧叠加"
 	case a.exportProgress >= 1:
 		title = "导出完成"
@@ -44,7 +50,7 @@ func (a *app) exportModal(c *ui.Context) {
 			exportRow(c, "视频", "H.264 · CRF 18 · yuv420p · faststart")
 			exportRow(c, "音频", "AAC 192k · 原视频音轨")
 			exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
-			exportRow(c, "预计耗时", "约 4 分 20 秒")
+			exportRow(c, "预计耗时", a.exportEstimate())
 			if a.exportRunning || a.exportProgress > 0 {
 				value := "不导出"
 				if a.exportSRT {
@@ -84,7 +90,11 @@ func (a *app) exportModal(c *ui.Context) {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
 					Radius(8).Background(pal.warnBG).Children(func() {
 					dot(c, pal.accent)
-					text(c, "导出在后台执行，可以关闭这个窗口", 10, pal.muted)
+					if a.exportStopping {
+						text(c, "正在停止 ffmpeg 并清理未完成的文件…", 10, pal.muted)
+					} else {
+						text(c, "导出在后台执行，可以关闭这个窗口", 10, pal.muted)
+					}
 				})
 			} else if a.exportErr != "" {
 				text(c, a.exportErr, 9.5, pal.warn)
@@ -97,7 +107,11 @@ func (a *app) exportModal(c *ui.Context) {
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				switch {
 				case a.exportRunning:
-					text(c, "导出中，先别关窗口…", 9.5, pal.faint)
+					if a.exportStopping {
+						text(c, "正在取消…", 9.5, pal.faint)
+					} else {
+						ghostButton(c, "取消导出", func() { a.cancelExport() })
+					}
 				case a.exportErr != "":
 					ghostButton(c, "关闭", func() { a.modal = modalNone })
 					primaryButton(c, "重试", func() { a.startExport(c) })
@@ -189,9 +203,7 @@ func (a *app) chordModal(c *ui.Context) {
 				ghostButton(c, "取消", func() { a.modal = modalNone })
 				primaryButton(c, "应用和弦", func() {
 					if a.chordBar >= 0 && a.chordBar < len(a.proj.Bars) {
-						a.proj.Bars[a.chordBar].Chords = []string{a.chordChoice}
-						a.proj.Bars[a.chordBar].NeedsReview = false
-						a.saveCurrent()
+						a.setBarChord(a.chordBar, a.chordChoice)
 						a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, a.chordChoice))
 					}
 					a.modal = modalNone

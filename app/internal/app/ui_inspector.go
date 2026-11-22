@@ -188,9 +188,7 @@ func (a *app) chordTab(c *ui.Context) {
 				if !ok || len(bar.Chords) == 0 {
 					return
 				}
-				a.proj.Bars[index].Chords[0] = chord
-				a.proj.Bars[index].NeedsReview = false
-				a.saveCurrent()
+				a.setBarChord(index, chord)
 				a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", index+1, chord))
 			})
 			b.Children(func() {
@@ -255,8 +253,8 @@ func (a *app) chordTab(c *ui.Context) {
 
 func (a *app) styleTab(c *ui.Context) {
 	sectionLabel(c, "叠加层", "竖屏实时预览")
-	sliderRow(c, "和弦字号", &a.proj.Style.ChordSize)
-	sliderRow(c, "字幕字号", &a.proj.Style.SubSize)
+	sliderRow(c, "和弦字号", &a.proj.Style.ChordSize, a.saveCurrent)
+	sliderRow(c, "字幕字号", &a.proj.Style.SubSize, a.saveCurrent)
 
 	sectionLabel(c, "强调色", a.proj.Style.Accent)
 	ui.Row(c).Gap(7).Children(func() {
@@ -318,7 +316,9 @@ func (a *app) styleTab(c *ui.Context) {
 		AlignItems(ui.Center).Children(func() {
 		text(c, "安全区", 10, pal.muted)
 		ui.Box(c).Grow(1)
-		ui.Switch(c, &a.safe)
+		if ui.Switch(c, &a.proj.Style.ShowSafe).Changed() {
+			a.saveCurrent()
+		}
 	})
 	ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
 		AlignItems(ui.Center).Children(func() {
@@ -343,14 +343,16 @@ func (a *app) styleTab(c *ui.Context) {
 	})
 }
 
-func sliderRow(c *ui.Context, name string, value *float64) {
+func sliderRow(c *ui.Context, name string, value *float64, onChange func()) {
 	ui.Column(c).Gap(3).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
 			text(c, name, 10, pal.muted)
 			ui.Box(c).Grow(1)
 			mono(c, fmt.Sprintf("%.0f", *value), 9, pal.faint)
 		})
-		ui.Slider(c, value, 32, 96).FillWidth()
+		if ui.Slider(c, value, 32, 96).FillWidth().Changed() && onChange != nil {
+			onChange()
+		}
 	})
 }
 

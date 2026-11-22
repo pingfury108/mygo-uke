@@ -55,6 +55,7 @@ func (a *app) saveLine(c *ui.Context) {
 	}
 	line := project.Line{Start: start, End: end, Text: text}
 	a.selectedLine = a.proj.SetLine(a.lineIndex, line)
+	a.proj.LinesEdited = true
 	a.saveCurrent()
 	a.playhead = start
 	a.modal = modalNone
@@ -66,6 +67,7 @@ func (a *app) deleteLine(c *ui.Context) {
 		a.modal = modalNone
 		return
 	}
+	a.proj.LinesEdited = true
 	if a.selectedLine >= len(a.proj.Lines) {
 		a.selectedLine = max(0, len(a.proj.Lines)-1)
 	}

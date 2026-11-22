@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -55,23 +57,29 @@ func (a *app) startExport(c *ui.Context) {
 		mygo.RunOnMain(func() {
 			a.exportRunning = true
 			a.exportProgress = 0
+			a.exportETA = 0
+			a.exportStopping = false
 			a.exportErr = ""
 			a.exportPath = path
 			a.exportNote = ""
 			a.modal = modalExport
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			a.exportCancel = cancel
 			a.invalidate()
-			go a.runExport(p, source, path, orientation, writeSRT)
+			go a.runExport(ctx, p, source, path, orientation, writeSRT)
 		})
 	}()
 }
 
 func (a *app) runExport(
+	ctx context.Context,
 	p *project.Project,
 	source, path string,
 	orientation int,
 	writeSRT bool,
 ) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	started := time.Now()
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	last := -1.0
 	err := videxport.Run(
@@ -81,16 +89,30 @@ func (a *app) runExport(
 				return
 			}
 			last = value
+			eta := time.Duration(0)
+			if value > 0.01 && value < 1 {
+				eta = time.Duration(float64(time.Since(started)) * (1 - value) / value)
+			}
 			mygo.RunOnMain(func() {
 				a.exportProgress = value
+				a.exportETA = eta
 				a.invalidate()
 			})
 		},
 	)
 	mygo.RunOnMain(func() {
 		a.exportRunning = false
+		a.exportETA = 0
+		a.exportCancel = nil
+		a.exportStopping = false
 		if err != nil {
-			a.exportErr = err.Error()
+			if errors.Is(err, context.Canceled) {
+				a.exportErr = "已取消导出"
+				a.exportProgress = 0
+				_ = os.Remove(path)
+			} else {
+				a.exportErr = err.Error()
+			}
 		} else {
 			a.exportProgress = 1
 			if writeSRT {
@@ -106,4 +128,37 @@ func (a *app) runExport(
 		}
 		a.invalidate()
 	})
+}
+
+func (a *app) cancelExport() {
+	if !a.exportRunning || a.exportCancel == nil {
+		return
+	}
+	a.exportStopping = true
+	a.exportCancel()
+}
+
+func (a *app) exportEstimate() string {
+	if a.exportRunning && a.exportETA > 0 {
+		return "约 " + durationWords(a.exportETA) + " · 实时"
+	}
+	if a.exportProgress > 0 && a.exportProgress < 1 && a.exportETA > 0 {
+		return "约 " + durationWords(a.exportETA)
+	}
+	if a.proj == nil || a.proj.Duration <= 0 {
+		return "按导出进度更新"
+	}
+	factor := 2.5
+	if a.orientation == 1 {
+		factor = 1.8
+	}
+	return "约 " + durationWords(time.Duration(a.proj.Duration*factor*float64(time.Second)))
+}
+
+func durationWords(d time.Duration) string {
+	seconds := int(d.Round(time.Second).Seconds())
+	if seconds < 60 {
+		return fmt.Sprintf("%d 秒", seconds)
+	}
+	return fmt.Sprintf("%d 分 %d 秒", seconds/60, seconds%60)
 }

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -46,7 +47,7 @@ func TestStudioInteractions(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if !a.safe {
+	if !a.proj.Style.ShowSafe {
 		t.Fatal("safe area did not toggle")
 	}
 
@@ -174,6 +175,75 @@ func TestSettingsModalSaves(t *testing.T) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExportEstimate(t *testing.T) {
+	a := newApp()
+	a.proj.Duration = 60
+	if got := a.exportEstimate(); got != "约 2 分 30 秒" {
+		t.Fatalf("vertical estimate = %q", got)
+	}
+	a.orientation = 1
+	if got := a.exportEstimate(); got != "约 1 分 48 秒" {
+		t.Fatalf("horizontal estimate = %q", got)
+	}
+	if got := durationWords(90 * time.Second); got != "1 分 30 秒" {
+		t.Fatalf("durationWords = %q", got)
+	}
+}
+
+func TestProjectRename(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "song", "project.json")
+	p := project.New("旧名字")
+	if err := project.Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	a.applyImported(p, path, true)
+	a.openProjectModal(0)
+	a.projectTitle = "新名字"
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if err := tt.Click("保存名称"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	loaded, err := project.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Title != "新名字" || a.projects[0].title != "新名字" {
+		t.Fatalf("title = %q / %q", loaded.Title, a.projects[0].title)
+	}
+}
+
+func TestProjectDeleteNeedsConfirmation(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "song", "project.json")
+	p := project.New("待删除")
+	if err := project.Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	a := newApp()
+	a.applyImported(p, path, true)
+	a.openProjectModal(0)
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if err := tt.Click("删除"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("project was deleted before confirmation")
+	}
+	if err := tt.Click("删除"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("project still exists: %v", err)
 	}
 }
 

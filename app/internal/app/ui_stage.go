@@ -52,7 +52,10 @@ func (a *app) stageHead(c *ui.Context) {
 				label(c, value, 9.5, pal.text, 650)
 				text(c, "和弦置信度", 9.5, pal.muted)
 			})
-			ghostButton(c, "安全区", func() { a.safe = !a.safe })
+			ghostButton(c, "安全区", func() {
+				a.proj.Style.ShowSafe = !a.proj.Style.ShowSafe
+				a.saveCurrent()
+			})
 			if a.player != nil {
 				muteLabel := "静音"
 				if a.muted {
@@ -234,7 +237,7 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 		drawVideoPlaceholder(p, r, "原视频 · 9:16")
 	})
 	frame.DrawOver(func(p *ui.Painter, r ui.Rect) {
-		if a.safe {
+		if a.proj.Style.ShowSafe {
 			drawSafeLines(p, r)
 		}
 	})
@@ -245,7 +248,7 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 		if hasLine {
 			subtitleOverlay(c, line.Text, w, h)
 		}
-		if a.safe {
+		if a.proj.Style.ShowSafe {
 			safeLabels(c, w, h)
 		}
 		ui.Row(c).Absolute().Right(7).Bottom(7).Padding(2, 6, 2, 6).Radius(5).

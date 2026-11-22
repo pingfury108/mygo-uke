@@ -136,7 +136,20 @@ func (a *app) startAnalysis(source string, importing bool) {
 				return
 			}
 			if !importing && a.proj != nil {
-				built.Title = a.proj.Title
+				built = project.Merge(a.proj, built)
+				if a.projPath != "" {
+					if saveErr := project.Save(a.projPath, built); saveErr != nil {
+						a.jobErr = "保存重新分析结果失败：" + saveErr.Error()
+						a.jobStage = "失败"
+						a.analysis = 0
+						a.invalidate()
+						return
+					}
+					if path != a.projPath {
+						_ = project.Delete(path)
+					}
+					path = a.projPath
+				}
 			}
 			a.applyImported(built, path, importing)
 			a.analysis = 1
