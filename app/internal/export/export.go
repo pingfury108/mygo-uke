@@ -17,7 +17,6 @@ import (
 
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/render"
-	"mygo-uke/internal/score"
 )
 
 const (
@@ -43,8 +42,10 @@ func Run(
 		return fmt.Errorf("export source: %w", err)
 	}
 	width, height := 1080, 1920
+	videoWidth, videoHeight := width, height
 	if orientation == 1 {
 		width, height = 1920, 1080
+		videoWidth, videoHeight = height*607/1080, height
 	}
 	if err := os.MkdirAll(filepath.Dir(output), 0o700); err != nil {
 		return err
@@ -52,7 +53,7 @@ func Run(
 
 	filter := fmt.Sprintf(
 		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,fps=%d",
-		width, height, width, height, fps,
+		videoWidth, videoHeight, videoWidth, videoHeight, fps,
 	)
 	decoder := exec.CommandContext(
 		ctx,
@@ -114,9 +115,9 @@ func Run(
 		return err
 	}
 
-	frameSize := width * height * 4
+	frameSize := videoWidth * videoHeight * 4
 	buffer := make([]byte, frameSize)
-	bitmap := ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, width, height)))
+	bitmap := ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, videoWidth, videoHeight)))
 	frame := 0
 	var writeErr error
 	for {
@@ -128,14 +129,21 @@ func Run(
 		}
 		pixels := &image.RGBA{
 			Pix:    buffer,
-			Stride: width * 4,
-			Rect:   image.Rect(0, 0, width, height),
+			Stride: videoWidth * 4,
+			Rect:   image.Rect(0, 0, videoWidth, videoHeight),
 		}
 		bitmap.Update(pixels)
 		seconds := float64(frame) / fps
-		out := render.Frame(
-			width, height, bitmap, chordAt(p, seconds), lineAt(p, seconds),
-		)
+		out := render.Frame(render.Spec{
+			Width:       width,
+			Height:      height,
+			VideoWidth:  videoWidth,
+			VideoHeight: videoHeight,
+			Background:  bitmap,
+			Project:     p,
+			Time:        seconds,
+			Orientation: orientation,
+		})
 		if err := writeFrame(encoderIn, out, width); err != nil {
 			writeErr = fmt.Errorf("export encoder: %w", err)
 			break
@@ -172,35 +180,6 @@ func Run(
 		progress(1)
 	}
 	return nil
-}
-
-func chordAt(p *project.Project, seconds float64) string {
-	if bar, _, ok := score.BarAt(p.Bars, seconds); ok && len(bar.Chords) > 0 {
-		return bar.Chords[0]
-	}
-	label := ""
-	for _, chord := range p.Chords {
-		if chord.Start <= seconds {
-			label = chord.Label
-		}
-		if chord.Start > seconds {
-			break
-		}
-	}
-	return label
-}
-
-func lineAt(p *project.Project, seconds float64) string {
-	text := ""
-	for _, line := range p.Lines {
-		if line.Start <= seconds {
-			text = line.Text
-		}
-		if line.Start > seconds {
-			break
-		}
-	}
-	return text
 }
 
 func writeFrame(w io.Writer, frame image.Image, width int) error {

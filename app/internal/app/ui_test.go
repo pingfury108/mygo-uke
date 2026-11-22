@@ -120,7 +120,7 @@ func TestModalsRender(t *testing.T) {
 }
 
 func TestRenderExportFrame(t *testing.T) {
-	img := RenderExportFrame(360, 640, nil)
+	img := RenderExportFrame(360, 640, nil, 0)
 	if got := img.Bounds().Size(); got.X != 360 || got.Y != 640 {
 		t.Fatalf("export frame size = %v", got)
 	}

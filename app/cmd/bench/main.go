@@ -22,7 +22,11 @@ func main() {
 	mode := flag.String("mode", "export", "export or ui")
 	flag.Parse()
 
-	background := image.NewRGBA(image.Rect(0, 0, *width, *height))
+	videoWidth, videoHeight := *width, *height
+	if *orientation == 1 {
+		videoWidth, videoHeight = videoHeight*607/1080, videoHeight
+	}
+	background := image.NewRGBA(image.Rect(0, 0, videoWidth, videoHeight))
 	draw.Draw(
 		background,
 		background.Bounds(),
@@ -36,7 +40,7 @@ func main() {
 		if *mode == "ui" {
 			return app.RenderFrame(*width, *height, *orientation)
 		}
-		return app.RenderExportFrame(*width, *height, bitmap)
+		return app.RenderExportFrame(*width, *height, bitmap, *orientation)
 	}
 	_ = render()
 	start := time.Now()

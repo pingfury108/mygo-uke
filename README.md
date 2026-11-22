@@ -64,8 +64,8 @@ rdev --no-sync runpulse restart chordd
 
 M1/M2/M3：录音棚界面、工程模型、小节生成、尤克里里指法表、真实导入管线
 （视频 → ffmpeg 抽音轨 → chordd → `project.json`），以及竖屏/横屏 ffmpeg
-成片导出。真实 `beat_this + BTC` 分析器已部署在 pcw；火山 ASR、完整曲谱
-叠加和字幕编辑仍待接入。
+成片导出。竖屏和弦条/指法图与横屏左右谱面已接入导出；真实
+`beat_this + BTC` 分析器已部署在 pcw，火山 ASR、逐句字幕和 SRT 仍待接入。
 
 - M0 实测记录：`docs/m0-validation.md`
 - M1 导入管线：`docs/m1-import.md`

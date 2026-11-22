@@ -29,22 +29,6 @@ func sampleProject() *project.Project {
 	return p
 }
 
-func TestChordAndLineAt(t *testing.T) {
-	p := sampleProject()
-	if got := chordAt(p, 1); got != "C" {
-		t.Fatalf("chordAt(1) = %q", got)
-	}
-	if got := chordAt(p, 4); got != "G" {
-		t.Fatalf("chordAt(4) = %q", got)
-	}
-	if got := lineAt(p, 1); got != "第一句" {
-		t.Fatalf("lineAt(1) = %q", got)
-	}
-	if got := lineAt(p, 4); got != "第二句" {
-		t.Fatalf("lineAt(4) = %q", got)
-	}
-}
-
 func TestExportIntegration(t *testing.T) {
 	source := os.Getenv("MYGO_UKE_EXPORT_SOURCE")
 	if source == "" {

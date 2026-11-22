@@ -8,9 +8,22 @@ import (
 	"mygo-uke/internal/render"
 )
 
-// RenderExportFrame draws one vertical video frame: the decoded video frame,
-// the current chord chip and one subtitle line. It is the same view code the
-// encoder will use, and never opens a window.
-func RenderExportFrame(width, height int, background *ui.Bitmap) image.Image {
-	return render.Frame(width, height, background, "C", "晚风把蝉声吹进窗台")
+// RenderExportFrame draws one video frame with the real overlay layout. It is
+// the same view code the encoder uses, and never opens a window.
+func RenderExportFrame(width, height int, background *ui.Bitmap, orientation int) image.Image {
+	p := demoProject()
+	videoWidth, videoHeight := width, height
+	if orientation == 1 {
+		videoWidth, videoHeight = height*607/1080, height
+	}
+	return render.Frame(render.Spec{
+		Width:       width,
+		Height:      height,
+		VideoWidth:  videoWidth,
+		VideoHeight: videoHeight,
+		Background:  background,
+		Project:     p,
+		Time:        p.Lines[0].Start,
+		Orientation: orientation,
+	})
 }
