@@ -56,6 +56,13 @@ MYGO_UKE_SOURCE=/path/song.mp3 go test ./internal/pipeline \
 2026-11-22 实测：257 秒音频、pcw 真实分析器（缓存命中），完整导入 17.0 秒，
 生成 211 个和弦段、174 个小节。
 
+真实 ASR 联调（用任意含语音的音频/视频）：
+
+```sh
+MYGO_UKE_VOLCANO_API_KEY=... MYGO_UKE_ASR_SOURCE=/path/speech.aiff \
+  go test ./internal/asr -run TestTranscribeLive -v -count=1
+```
+
 ## ASR 行为
 
 - 未配置 Key：跳过转写，导入照常完成，`lines` 为空；可在字幕面板
@@ -63,6 +70,8 @@ MYGO_UKE_SOURCE=/path/song.mp3 go test ./internal/pipeline \
 - 配置 Key：ASR 与 chordd 并行；转写失败不会丢和弦，失败原因写入
   `project.json` 的 `warnings`，界面状态显示「完成 · 字幕未识别」。
 - 只接受服务端返回的句级 `result.utterances[]`；没有句子时间不会伪造成整首一条。
+- `utterances` 会渐进修订同一句（起始时间相同、结束时间和文本增长），
+  客户端按起始时间归组，保留最新最长版本。
 
 ## 已知限制
 

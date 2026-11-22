@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -75,7 +76,7 @@ func TranscribeFile(
 	if err := client.SendEnd(ctx); err != nil {
 		return nil, err
 	}
-	var finalized []Utterance
+	var last []Utterance
 	for {
 		select {
 		case result, ok := <-client.Results():
@@ -85,11 +86,17 @@ func TranscribeFile(
 			if result.Err != nil {
 				return nil, result.Err
 			}
-			finalized = mergeUtterances(finalized, result.Utterances)
+			if len(result.Utterances) > 0 {
+				last = result.Utterances
+			}
 			if !result.Final {
 				continue
 			}
-			lines := linesFrom(finalized, duration)
+			utterances := result.Utterances
+			if len(utterances) == 0 {
+				utterances = last
+			}
+			lines := linesFrom(utterances, duration)
 			if len(lines) == 0 {
 				return nil, fmt.Errorf(
 					"asr: 定稿没有句级 utterances（文本：%q）",
@@ -106,29 +113,14 @@ func TranscribeFile(
 	}
 }
 
-func mergeUtterances(dst, src []Utterance) []Utterance {
-	type key struct {
-		start int64
-		end   int64
-		text  string
-	}
-	seen := make(map[key]bool, len(dst))
-	for _, item := range dst {
-		seen[key{int64(item.StartMS), int64(item.EndMS), item.Text}] = true
-	}
-	for _, item := range src {
-		k := key{int64(item.StartMS), int64(item.EndMS), item.Text}
-		if seen[k] {
-			continue
-		}
-		seen[k] = true
-		dst = append(dst, item)
-	}
-	return dst
-}
-
 func linesFrom(utterances []Utterance, duration float64) []Line {
-	lines := make([]Line, 0, len(utterances))
+	type group struct {
+		start    float64
+		end      float64
+		text     string
+		definite bool
+	}
+	groups := make([]group, 0, len(utterances))
 	for _, item := range utterances {
 		text := strings.TrimSpace(item.Text)
 		if text == "" {
@@ -139,6 +131,41 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 		if start < 0 {
 			start = 0
 		}
+		if end <= start {
+			continue
+		}
+		// The service revises a sentence in place: several utterances share
+		// one start and grow in end time/text. Keep the best version.
+		index := -1
+		for i := range groups {
+			if abs(groups[i].start-start) <= 0.3 {
+				index = i
+				break
+			}
+		}
+		if index < 0 {
+			groups = append(groups, group{
+				start: start, end: end, text: text, definite: item.Definite,
+			})
+			continue
+		}
+		g := &groups[index]
+		better := item.Definite && !g.definite
+		if item.Definite == g.definite {
+			better = end > g.end || (end == g.end && len([]rune(text)) > len([]rune(g.text)))
+		}
+		if better {
+			g.end = end
+			g.text = text
+			g.definite = item.Definite
+		}
+	}
+	sort.SliceStable(groups, func(i, j int) bool {
+		return groups[i].start < groups[j].start
+	})
+	lines := make([]Line, 0, len(groups))
+	for _, g := range groups {
+		start, end := g.start, g.end
 		if duration > 0 {
 			start = min(start, duration)
 			end = min(end, duration)
@@ -146,7 +173,14 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 		if end <= start {
 			continue
 		}
-		lines = append(lines, Line{Start: start, End: end, Text: text})
+		lines = append(lines, Line{Start: start, End: end, Text: g.text})
 	}
 	return lines
+}
+
+func abs(value float64) float64 {
+	if value < 0 {
+		return -value
+	}
+	return value
 }

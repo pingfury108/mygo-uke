@@ -20,11 +20,14 @@ func TestLinesFrom(t *testing.T) {
 	}
 }
 
-func TestMergeUtterances(t *testing.T) {
-	a := Utterance{Text: "第一句", StartMS: 0, EndMS: 1000}
-	b := Utterance{Text: "第二句", StartMS: 1000, EndMS: 2000}
-	got := mergeUtterances([]Utterance{a}, []Utterance{a, b})
-	if len(got) != 2 || got[1].Text != "第二句" {
-		t.Fatalf("merged = %#v", got)
+func TestLinesFromKeepsLatestRevision(t *testing.T) {
+	got := linesFrom([]Utterance{
+		{Text: "今天。", StartMS: 0, EndMS: 500, Definite: false},
+		{Text: "今天天气。", StartMS: 0, EndMS: 900, Definite: false},
+		{Text: "今天天气不错。", StartMS: 0, EndMS: 1500, Definite: false},
+		{Text: "今天天气不错，我们一起弹尤克里里。", StartMS: 0, EndMS: 6000, Definite: true},
+	}, 10)
+	if len(got) != 1 || got[0].End != 6 || got[0].Text != "今天天气不错，我们一起弹尤克里里。" {
+		t.Fatalf("lines = %#v", got)
 	}
 }
