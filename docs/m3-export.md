@@ -42,13 +42,14 @@ macOS Apple Silicon，合成 6 秒 720p 源视频：
 ## 使用
 
 界面：`导出成片 → 开始导出 → 选择保存位置`。
+默认同时导出同名 `.srt`，可在导出弹窗里关掉；工程没有逐句字幕时跳过。
 
 命令行：
 
 ```sh
 cd app
 go run ./cmd/export -project /path/project.json -source /path/song.mp4 \
-  -out /path/out.mp4 -orientation 0
+  -out /path/out.mp4 -orientation 0 -srt
 ```
 
 真实编码集成测试：
@@ -64,5 +65,4 @@ go test ./internal/export -run TestExportIntegration -v -count=1
 - 导入工程尚未接 ASR，`lines` 为空时竖屏只显示和弦条/指法图，
   横屏右侧退化为小节和弦表。
 - 使用源视频原音轨，尚未做人声分离或伴奏混音。
-- SRT 导出尚未接入。
 - 导出任务没有取消按钮；关闭弹窗后任务仍在后台执行。

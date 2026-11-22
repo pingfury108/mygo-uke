@@ -72,3 +72,21 @@ func TestExportIntegration(t *testing.T) {
 		t.Fatalf("video size = %q", got)
 	}
 }
+
+func TestWriteSRT(t *testing.T) {
+	p := sampleProject()
+	path := filepath.Join(t.TempDir(), "out.srt")
+	if err := WriteSRT(p, path); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "第一句") || !strings.Contains(string(data), "第二句") {
+		t.Fatalf("srt = %q", data)
+	}
+	if got := SRTName("/tmp/song.mp4"); got != "/tmp/song.srt" {
+		t.Fatalf("SRTName = %q", got)
+	}
+}

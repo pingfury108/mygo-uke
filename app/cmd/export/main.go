@@ -17,6 +17,7 @@ func main() {
 	source := flag.String("source", "", "source video path")
 	output := flag.String("out", "out.mp4", "output mp4 path")
 	orientation := flag.Int("orientation", 0, "0 vertical, 1 horizontal")
+	writeSRT := flag.Bool("srt", false, "also write an SRT beside the output")
 	flag.Parse()
 	if *projectPath == "" || *source == "" {
 		log.Fatal("usage: export -project project.json -source video.mp4 -out out.mp4")
@@ -41,6 +42,13 @@ func main() {
 	)
 	if err != nil {
 		log.Fatal(err)
+	}
+	if *writeSRT {
+		srt := videxport.SRTName(*output)
+		if err := videxport.WriteSRT(p, srt); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println(srt)
 	}
 	fmt.Println(*output)
 }

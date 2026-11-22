@@ -49,6 +49,8 @@ type app struct {
 	exportProgress float64
 	exportErr      string
 	exportPath     string
+	exportNote     string
+	exportSRT      bool
 	exportFormat   int
 	chordBar       int
 	chordChoice    string
@@ -101,6 +103,7 @@ func newApp() *app {
 		selectedLine: 6,
 		chordChoice:  "C",
 		chorddURL:    chorddBaseURL(),
+		exportSRT:    true,
 	}
 }
 

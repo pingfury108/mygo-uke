@@ -28,6 +28,7 @@ func (a *app) startExport(c *ui.Context) {
 	}
 	name := exportName(a.proj.Title, a.orientation)
 	orientation := a.orientation
+	writeSRT := a.exportSRT
 	p := a.proj
 
 	go func() {
@@ -56,14 +57,20 @@ func (a *app) startExport(c *ui.Context) {
 			a.exportProgress = 0
 			a.exportErr = ""
 			a.exportPath = path
+			a.exportNote = ""
 			a.modal = modalExport
 			a.invalidate()
-			go a.runExport(p, source, path, orientation)
+			go a.runExport(p, source, path, orientation, writeSRT)
 		})
 	}()
 }
 
-func (a *app) runExport(p *project.Project, source, path string, orientation int) {
+func (a *app) runExport(
+	p *project.Project,
+	source, path string,
+	orientation int,
+	writeSRT bool,
+) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 	last := -1.0
@@ -86,6 +93,16 @@ func (a *app) runExport(p *project.Project, source, path string, orientation int
 			a.exportErr = err.Error()
 		} else {
 			a.exportProgress = 1
+			if writeSRT {
+				srtPath := videxport.SRTName(path)
+				if srtErr := videxport.WriteSRT(p, srtPath); srtErr != nil {
+					a.exportNote = "视频已导出；SRT 写入失败：" + srtErr.Error()
+				} else if len(p.Lines) > 0 {
+					a.exportNote = "SRT 已写入 " + srtPath
+				} else {
+					a.exportNote = "工程无字幕，未生成 SRT"
+				}
+			}
 		}
 		a.invalidate()
 	})

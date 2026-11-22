@@ -46,6 +46,24 @@ func (a *app) exportModal(c *ui.Context) {
 			exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
 			exportRow(c, "预计耗时", "约 4 分 20 秒")
 			if a.exportRunning || a.exportProgress > 0 {
+				value := "不导出"
+				if a.exportSRT {
+					value = "SRT · 逐句"
+				}
+				exportRow(c, "字幕", value)
+			} else {
+				ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
+					AlignItems(ui.Center).Children(func() {
+					text(c, "字幕", 10, pal.muted).Width(58)
+					mono(c, "同时导出 SRT", 9.5, pal.text)
+					ui.Box(c).Grow(1)
+					ui.Switch(c, &a.exportSRT)
+				})
+				if a.exportSRT && len(a.proj.Lines) == 0 {
+					text(c, "工程还没有字幕，这次会跳过 SRT", 9, pal.faint)
+				}
+			}
+			if a.exportRunning || a.exportProgress > 0 {
 				progress := a.exportProgress
 				ui.Column(c).Gap(5).Children(func() {
 					ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -72,6 +90,9 @@ func (a *app) exportModal(c *ui.Context) {
 				text(c, a.exportErr, 9.5, pal.warn)
 			} else if a.exportProgress >= 1 {
 				mono(c, a.exportPath, 9, pal.good).SingleLine()
+				if a.exportNote != "" {
+					text(c, a.exportNote, 9, pal.muted)
+				}
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				switch {

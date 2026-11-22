@@ -35,6 +35,7 @@ func (a *app) titlebar(c *ui.Context) {
 			a.exportProgress = 0
 			a.exportErr = ""
 			a.exportPath = ""
+			a.exportNote = ""
 			a.modal = modalExport
 		})
 	})
