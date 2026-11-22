@@ -79,6 +79,12 @@ func TestStudioInteractions(t *testing.T) {
 	if _, ok := tt.Find("开始导出"); !ok {
 		t.Fatal("export modal did not render")
 	}
+	if _, ok := tt.Find("已烧进画面 · 逐句"); !ok {
+		t.Fatal("export modal did not explain burned-in subtitles")
+	}
+	if a.exportSRT {
+		t.Fatal("SRT should be opt-in")
+	}
 	if err := tt.Click("取消"); err != nil {
 		t.Fatal(err)
 	}
@@ -154,6 +160,96 @@ func TestPlaybackShortcuts(t *testing.T) {
 	tt.Frame()
 	if a.muted == muted {
 		t.Fatal("M did not toggle mute")
+	}
+}
+
+func TestInspectorToolbarStaysFixed(t *testing.T) {
+	a := newApp()
+	for i := 0; i < 30; i++ {
+		start := 80 + float64(i)*3
+		a.proj.Lines = append(a.proj.Lines, project.Line{
+			Start: start,
+			End:   start + 2.8,
+			Text:  "长视频字幕",
+		})
+	}
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+
+	before, ok := tt.Find("编辑选中")
+	if !ok {
+		t.Fatal("subtitle edit action missing")
+	}
+	a.inspectorScroll[0].Y = 600
+	tt.Frame()
+	after, ok := tt.Find("编辑选中")
+	if !ok {
+		t.Fatal("subtitle edit action scrolled away")
+	}
+	if before.Y != after.Y {
+		t.Fatalf("subtitle toolbar moved from %.1f to %.1f", before.Y, after.Y)
+	}
+	if err := tt.Click("编辑选中"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.modal != modalLine {
+		t.Fatalf("modal = %v, want line editor", a.modal)
+	}
+}
+
+func TestInspectorRevealsSelectedLine(t *testing.T) {
+	a := newApp()
+	a.proj.Lines = nil
+	for i := 0; i < 50; i++ {
+		start := float64(i) * 3
+		a.proj.Lines = append(a.proj.Lines, project.Line{
+			Start: start,
+			End:   start + 2.8,
+			Text:  "远处理字幕",
+		})
+	}
+	a.playhead = 147
+	a.selectedLine = 0
+	a.syncSelection()
+	if a.selectedLine != 49 || a.revealLine != 49 {
+		t.Fatalf("selectedLine = %d, revealLine = %d", a.selectedLine, a.revealLine)
+	}
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	tt.Frame()
+	if a.inspectorScroll[0].Y <= 0 {
+		t.Fatalf("subtitle list did not scroll to selected line: Y = %.1f", a.inspectorScroll[0].Y)
+	}
+}
+
+func TestChordToolbarStaysFixed(t *testing.T) {
+	a := newApp()
+	a.tab = 1
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+
+	before, ok := tt.Find("常用和弦")
+	if !ok {
+		t.Fatal("chord palette missing")
+	}
+	a.inspectorScroll[1].Y = 600
+	tt.Frame()
+	after, ok := tt.Find("常用和弦")
+	if !ok {
+		t.Fatal("chord palette scrolled away")
+	}
+	if before.Y != after.Y {
+		t.Fatalf("chord palette moved from %.1f to %.1f", before.Y, after.Y)
+	}
+
+	a.playhead = a.proj.Bars[len(a.proj.Bars)-1].Start
+	a.chordCursor = -1
+	tt.Frame()
+	tt.Frame()
+	if a.inspectorScroll[1].Y <= 0 {
+		t.Fatalf("bar list did not scroll to current bar: Y = %.1f", a.inspectorScroll[1].Y)
 	}
 }
 
@@ -242,11 +338,11 @@ func TestSettingsModalSaves(t *testing.T) {
 func TestExportEstimate(t *testing.T) {
 	a := newApp()
 	a.proj.Duration = 60
-	if got := a.exportEstimate(); got != "约 2 分 30 秒" {
+	if got := a.exportEstimate(); got != "约 42 秒" {
 		t.Fatalf("vertical estimate = %q", got)
 	}
 	a.orientation = 1
-	if got := a.exportEstimate(); got != "约 1 分 48 秒" {
+	if got := a.exportEstimate(); got != "约 36 秒" {
 		t.Fatalf("horizontal estimate = %q", got)
 	}
 	if got := durationWords(90 * time.Second); got != "1 分 30 秒" {

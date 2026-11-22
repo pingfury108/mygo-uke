@@ -49,6 +49,11 @@ type app struct {
 	selectedLine int
 	pattern      int
 
+	inspectorScroll [3]ui.ScrollState
+	revealLine      int
+	revealBar       int
+	chordCursor     int
+
 	modal          modalKind
 	analysis       float64
 	exportRunning  bool
@@ -134,8 +139,11 @@ func newApp() *app {
 		selectedLine: 6,
 		chordChoice:  "C",
 		lineIndex:    -1,
+		revealLine:   -1,
+		revealBar:    -1,
+		chordCursor:  -1,
 		chorddURL:    s.ChorddURL,
-		exportSRT:    true,
+		exportSRT:    false,
 		asrConfig:    s.asrConfig(),
 		settings:     s,
 		chorddWake:   make(chan struct{}, 1),
@@ -329,7 +337,12 @@ func (a *app) seek(delta float64) {
 func (a *app) syncSelection() {
 	for i, line := range a.proj.Lines {
 		if a.playhead >= line.Start-0.01 && a.playhead <= line.End+0.01 {
-			a.selectedLine = i
+			if a.selectedLine != i {
+				a.selectedLine = i
+				if !a.playing {
+					a.revealLine = i
+				}
+			}
 			return
 		}
 	}

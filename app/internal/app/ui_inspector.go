@@ -5,70 +5,137 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"mygo-uke/internal/project"
 	"mygo-uke/internal/score"
 	"mygo-uke/internal/uke"
 )
 
 func (a *app) inspector(c *ui.Context) {
+	if a.tab < 0 || a.tab > 2 {
+		a.tab = 0
+	}
 	ui.Column(c).Width(326).Background(pal.panel).
 		DrawOver(func(p *ui.Painter, r ui.Rect) {
 			p.Line(r.X+0.5, r.Y, r.X+0.5, r.Y+r.H, 1, pal.line)
 		}).Children(func() {
-		ui.Row(c).Height(45).Padding(0, 12, 0, 12).Gap(2).
-			AlignItems(ui.Stretch).Children(func() {
-			for i, name := range []string{"字幕", "和弦", "样式"} {
-				index := i
-				on := a.tab == index
-				b := ui.ButtonBase(c).Grow(1).Center().Label(name).FocusRing(false)
-				b.OnClick(func() { a.tab = index })
-				b.DrawOver(func(p *ui.Painter, r ui.Rect) {
-					if on {
-						p.Fill(ui.Rect{X: r.X + 14, Y: r.Y + r.H - 2, W: r.W - 28, H: 2}, pal.accent, 1)
-					}
-				})
-				b.Children(func() {
-					color := pal.muted
-					weight := 500
-					if on {
-						color = pal.text
-						weight = 650
-					}
-					label(c, name, 11, color, weight)
-				})
-			}
-		})
-		ui.Box(c).Height(1).FillWidth().Background(pal.line)
-		scroll := ui.Scroll(c).Grow(1)
+		a.inspectorTabs(c)
+		switch a.tab {
+		case 0:
+			a.subtitleHeader(c)
+		case 1:
+			a.chordHeader(c)
+		}
+		scroll := ui.Scroll(c).Grow(1).TrackScroll(&a.inspectorScroll[a.tab])
 		scroll.Children(func() {
 			ui.Column(c).FillWidth().Padding(14).Gap(8).Children(func() {
 				switch a.tab {
 				case 1:
-					a.chordTab(c)
+					a.chordBars(c)
 				case 2:
 					a.styleTab(c)
 				default:
-					a.subtitleTab(c)
+					a.subtitleList(c)
 				}
 			})
 		})
 	})
 }
 
-func (a *app) subtitleTab(c *ui.Context) {
-	ui.Row(c).AlignItems(ui.Center).PaddingY(4).Children(func() {
-		label(c, "逐句字幕", 10, pal.muted, 600)
-		mono(c, fmt.Sprintf("%d 句", len(a.proj.Lines)), 9, pal.faint).Margin(0, 6, 0, 0)
-		ui.Box(c).Grow(1)
-		if len(a.proj.Lines) > 0 {
-			ghostButton(c, "编辑选中", func() { a.openLineEditor(a.selectedLine) })
+func (a *app) inspectorTabs(c *ui.Context) {
+	ui.Row(c).Height(45).Padding(0, 12, 0, 12).Gap(2).
+		AlignItems(ui.Stretch).Children(func() {
+		for i, name := range []string{"字幕", "和弦", "样式"} {
+			index := i
+			on := a.tab == index
+			b := ui.ButtonBase(c).Grow(1).Center().Label(name).FocusRing(false)
+			b.OnClick(func() { a.tab = index })
+			b.DrawOver(func(p *ui.Painter, r ui.Rect) {
+				if on {
+					p.Fill(ui.Rect{X: r.X + 14, Y: r.Y + r.H - 2, W: r.W - 28, H: 2}, pal.accent, 1)
+				}
+			})
+			b.Children(func() {
+				color := pal.muted
+				weight := 500
+				if on {
+					color = pal.text
+					weight = 650
+				}
+				label(c, name, 11, color, weight)
+			})
 		}
-		ghostButton(c, "添加", func() { a.openLineEditor(-1) })
 	})
+	ui.Box(c).Height(1).FillWidth().Background(pal.line)
+}
+
+func (a *app) subtitleHeader(c *ui.Context) {
+	line, hasLine := a.selectedLineValue()
+	ui.Column(c).Padding(7, 14, 7, 14).Gap(5).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			label(c, "逐句字幕", 10, pal.muted, 600)
+			mono(c, fmt.Sprintf("%d 句", len(a.proj.Lines)), 9, pal.faint).Margin(0, 6, 0, 0)
+			ui.Box(c).Grow(1)
+			if hasLine {
+				ghostButton(c, "定位", func() { a.revealLine = a.selectedLine })
+				ghostButton(c, "编辑选中", func() { a.openLineEditor(a.selectedLine) })
+			}
+			ghostButton(c, "添加", func() { a.openLineEditor(-1) })
+		})
+		if hasLine {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				mono(c, fmt.Sprintf("当前 %d/%d · %s", a.selectedLine+1,
+					len(a.proj.Lines), timeText(line.Start)), 8.5, pal.faint)
+				label(c, line.Text, 9.5, pal.muted, 500).Grow(1).SingleLine()
+			})
+		}
+		if n := a.reviewBars(); n > 0 {
+			callout := ui.ButtonBase(c).FillWidth().Padding(4, 7, 4, 7).Radius(6).
+				Background(pal.warnBG).AlignItems(ui.Center).Label("待确认").FocusRing(false)
+			callout.OnClick(a.jumpToReview)
+			callout.Children(func() {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					dot(c, pal.warn)
+					text(c, fmt.Sprintf("%d 处待确认 · 点一下跳到下一处", n), 9, pal.muted)
+				})
+			})
+		}
+	})
+	ui.Box(c).Height(1).FillWidth().Background(pal.line)
+}
+
+func (a *app) selectedLineValue() (project.Line, bool) {
+	if a.selectedLine < 0 || a.selectedLine >= len(a.proj.Lines) {
+		return project.Line{}, false
+	}
+	return a.proj.Lines[a.selectedLine], true
+}
+
+func (a *app) jumpToReview() {
+	if len(a.proj.Bars) == 0 {
+		return
+	}
+	start := score.BarIndexAt(a.proj.Bars, a.playhead)
+	for step := 1; step <= len(a.proj.Bars); step++ {
+		index := (start + step + len(a.proj.Bars)) % len(a.proj.Bars)
+		if !a.proj.Bars[index].NeedsReview {
+			continue
+		}
+		a.playhead = a.proj.Bars[index].Start
+		a.seekPlayer()
+		a.syncSelection()
+		return
+	}
+}
+
+func (a *app) subtitleList(c *ui.Context) {
 	if len(a.proj.Lines) == 0 {
 		ui.Row(c).Padding(9, 10, 9, 10).Radius(8).Background(pal.card).
 			Children(func() {
 				text(c, "还没有字幕：点「添加」手填，或配置火山 Key 后重新分析", 9, pal.faint)
 			})
+	}
+	if a.revealLine >= len(a.proj.Lines) {
+		a.revealLine = -1
 	}
 	for i, line := range a.proj.Lines {
 		index := i
@@ -115,27 +182,10 @@ func (a *app) subtitleTab(c *ui.Context) {
 				})
 			})
 		})
-	}
-
-	if n := a.reviewBars(); n > 0 {
-		callout := ui.ButtonBase(c).FillWidth().Padding(8, 10, 8, 10).Radius(8).
-			Background(pal.warnBG).AlignItems(ui.Center).Label("待确认").FocusRing(false)
-		callout.OnClick(func() {
-			for _, bar := range a.proj.Bars {
-				if bar.NeedsReview {
-					a.playhead = bar.Start
-					a.seekPlayer()
-					a.syncSelection()
-					break
-				}
-			}
-		})
-		callout.Children(func() {
-			ui.Row(c).Gap(7).AlignItems(ui.Center).Children(func() {
-				dot(c, pal.warn)
-				text(c, fmt.Sprintf("%d 处需要确认 · 点一下跳到对应小节", n), 9.5, pal.muted)
-			})
-		})
+		if a.revealLine == index {
+			card.ScrollIntoView()
+			a.revealLine = -1
+		}
 	}
 
 	sectionLabel(c, "节奏型", a.patternName())
@@ -175,42 +225,62 @@ func (a *app) subtitleTab(c *ui.Context) {
 	})
 }
 
-func (a *app) chordTab(c *ui.Context) {
-	sectionLabel(c, "常用和弦", "点选替换当前小节")
-	grid := ui.Grid(c).FillWidth().Columns(4).Gap(6)
-	grid.Children(func() {
-		for _, name := range []string{"C", "G", "Am", "Em", "F", "Dm", "G7", "Cmaj7", "Am7", "Em7", "D7", "Bb"} {
-			chord := name
-			b := ui.ButtonBase(c).Height(30).Radius(7).Center().Label(chord).FocusRing(false).
-				Background(pal.card).Border(1, pal.line)
-			if b.Hovered() {
-				b.Background(pal.warnBG)
+func (a *app) chordHeader(c *ui.Context) {
+	bar, index, ok := a.barAt(a.playhead)
+	current := "—"
+	if ok && len(bar.Chords) > 0 {
+		current = bar.Chords[0]
+	}
+	ui.Column(c).Padding(7, 14, 7, 14).Gap(5).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			label(c, "常用和弦", 10, pal.muted, 600)
+			ui.Box(c).Grow(1)
+			if ok {
+				mono(c, fmt.Sprintf("第 %d 小节 · %s", index+1, current), 8.5, pal.faint)
+				ghostButton(c, "定位", func() { a.revealBar = index })
 			}
-			b.OnClick(func() {
-				bar, index, ok := a.barAt(a.playhead)
-				if !ok || len(bar.Chords) == 0 {
-					return
+		})
+		grid := ui.Grid(c).FillWidth().Columns(4).Gap(6)
+		grid.Children(func() {
+			for _, name := range []string{"C", "G", "Am", "Em", "F", "Dm", "G7", "Cmaj7", "Am7", "Em7", "D7", "Bb"} {
+				chord := name
+				b := ui.ButtonBase(c).Height(30).Radius(7).Center().Label(chord).FocusRing(false).
+					Background(pal.card).Border(1, pal.line)
+				if b.Hovered() {
+					b.Background(pal.warnBG)
 				}
-				a.setBarChord(index, chord)
-				a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", index+1, chord))
-			})
-			b.Children(func() {
-				label(c, chord, 10.5, pal.text, 600)
-			})
-		}
+				b.OnClick(func() {
+					bar, index, ok := a.barAt(a.playhead)
+					if !ok || len(bar.Chords) == 0 {
+						return
+					}
+					a.setBarChord(index, chord)
+					a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", index+1, chord))
+				})
+				b.Children(func() {
+					label(c, chord, 10.5, pal.text, 600)
+				})
+			}
+		})
 	})
+	ui.Box(c).Height(1).FillWidth().Background(pal.line)
+}
 
+func (a *app) chordBars(c *ui.Context) {
 	sectionLabel(c, "按小节", fmt.Sprintf("%d 小节 · 点击改", len(a.proj.Bars)))
 	currentIndex := score.BarIndexAt(a.proj.Bars, a.playhead)
+	if a.chordCursor != currentIndex {
+		if !a.playing && currentIndex >= 0 {
+			a.revealBar = currentIndex
+		}
+		a.chordCursor = currentIndex
+	}
+	if a.revealBar >= len(a.proj.Bars) {
+		a.revealBar = -1
+	}
 	for i, bar := range a.proj.Bars {
 		index := i
 		b := bar
-		if i < currentIndex-6 {
-			continue
-		}
-		if i > currentIndex+14 {
-			break
-		}
 		selected := index == currentIndex
 		row := ui.ButtonBase(c).FillWidth().Padding(7, 9, 7, 9).Radius(7).
 			Label(fmt.Sprintf("第 %d 小节", index+1)).AlignItems(ui.Center).FocusRing(false)
@@ -251,6 +321,10 @@ func (a *app) chordTab(c *ui.Context) {
 				mono(c, timeText(b.Start), 8.5, pal.faint)
 			})
 		})
+		if a.revealBar == index {
+			row.ScrollIntoView()
+			a.revealBar = -1
+		}
 	}
 }
 

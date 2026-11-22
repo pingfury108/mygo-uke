@@ -189,9 +189,20 @@ func (a *app) resetCursor() {
 		a.playhead = a.proj.Downbeats[0]
 	}
 	a.selectedLine = 0
+	a.revealLine = 0
+	a.revealBar = -1
+	a.chordCursor = -1
+	a.resetInspectorScroll()
 	a.pattern = patternIndex(a.proj.Pattern)
 	if len(a.proj.Chords) > 0 {
 		a.chordChoice = a.proj.Chords[0].Label
+	}
+}
+
+func (a *app) resetInspectorScroll() {
+	for i := range a.inspectorScroll {
+		a.inspectorScroll[i].X = 0
+		a.inspectorScroll[i].Y = 0
 	}
 }
 

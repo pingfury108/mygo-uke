@@ -145,6 +145,10 @@ func (a *app) selectProject(index int) {
 		}
 		a.playhead = 42
 		a.selectedLine = 6
+		a.revealLine = 6
+		a.revealBar = -1
+		a.chordCursor = -1
+		a.resetInspectorScroll()
 	}
 	a.playing = false
 	if a.player != nil {

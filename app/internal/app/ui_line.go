@@ -55,6 +55,7 @@ func (a *app) saveLine(c *ui.Context) {
 	}
 	line := project.Line{Start: start, End: end, Text: text}
 	a.selectedLine = a.proj.SetLine(a.lineIndex, line)
+	a.revealLine = a.selectedLine
 	a.proj.LinesEdited = true
 	a.saveCurrent()
 	a.playhead = start
@@ -71,6 +72,7 @@ func (a *app) deleteLine(c *ui.Context) {
 	if a.selectedLine >= len(a.proj.Lines) {
 		a.selectedLine = max(0, len(a.proj.Lines)-1)
 	}
+	a.revealLine = a.selectedLine
 	a.saveCurrent()
 	a.modal = modalNone
 	a.toast(c, "字幕已删除", "")
