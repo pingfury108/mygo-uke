@@ -33,7 +33,23 @@ downbeat 间隔稳定在 1.44 秒；按 125 BPM 折算为 3 拍，因此 3/4 判
 
 ## V3 · 离屏渲染性能
 
-未开始。下一步补 `cmd/bench`，1080×1920 跑 100 帧，确认单帧 ≤ 40ms。
+已补 `app/cmd/bench`，macOS Apple Silicon：
+
+| 场景 | 1080×1920 平均单帧 | 200 帧总计 |
+|---|---|---|
+| 导出帧（视频底图 + 和弦 + 字幕） | 14.1ms | 2.8s |
+| 整套三栏编辑器 UI（保守上界） | 43.1ms | 8.6s |
+
+**结论**：真实导出路径 14ms，满足 ≤40ms；3 分钟视频理论渲染约 76 秒。
+整套编辑器 UI 超过 40ms 但不用于逐帧导出，且仍低于 80ms 降级线。
+
+复现：
+
+```sh
+cd app
+go run ./cmd/bench -mode export -n 200 -width 1080 -height 1920
+go run ./cmd/bench -mode ui -n 200 -width 1080 -height 1920
+```
 
 ## 复现
 
