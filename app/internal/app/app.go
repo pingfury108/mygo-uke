@@ -43,12 +43,15 @@ type app struct {
 	selectedLine int
 	pattern      int
 
-	modal        modalKind
-	analysis     float64
-	exporting    bool
-	exportFormat int
-	chordBar     int
-	chordChoice  string
+	modal          modalKind
+	analysis       float64
+	exportRunning  bool
+	exportProgress float64
+	exportErr      string
+	exportPath     string
+	exportFormat   int
+	chordBar       int
+	chordChoice    string
 
 	jobRunning bool
 	jobErr     string

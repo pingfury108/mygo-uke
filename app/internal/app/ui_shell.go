@@ -31,7 +31,12 @@ func (a *app) titlebar(c *ui.Context) {
 		ui.Box(c).Grow(1)
 		flatButton(c, "重新分析", func() { a.startReanalyze(c) })
 		segment(c, []string{"竖屏", "横屏"}, &a.orientation)
-		primaryButton(c, "导出成片", func() { a.modal = modalExport })
+		primaryButton(c, "导出成片", func() {
+			a.exportProgress = 0
+			a.exportErr = ""
+			a.exportPath = ""
+			a.modal = modalExport
+		})
 	})
 }
 

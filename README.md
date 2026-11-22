@@ -62,12 +62,14 @@ rdev --no-sync runpulse restart chordd
 
 ## 当前阶段
 
-M1/M2：录音棚界面、工程模型、小节生成、尤克里里指法表，以及真实导入管线
-（视频 → ffmpeg 抽音轨 → chordd → `project.json`）。真实 `beat_this + BTC`
-分析器已部署在 pcw；火山 ASR 和 ffmpeg 成片导出仍待接入。
+M1/M2/M3：录音棚界面、工程模型、小节生成、尤克里里指法表、真实导入管线
+（视频 → ffmpeg 抽音轨 → chordd → `project.json`），以及竖屏/横屏 ffmpeg
+成片导出。真实 `beat_this + BTC` 分析器已部署在 pcw；火山 ASR、完整曲谱
+叠加和字幕编辑仍待接入。
 
 - M0 实测记录：`docs/m0-validation.md`
 - M1 导入管线：`docs/m1-import.md`
+- M3 导出管线：`docs/m3-export.md`
 
 工程库默认在 `~/Library/Application Support/mygo-uke/projects`，可用
 `MYGO_UKE_PROJECTS` 覆盖。

@@ -21,9 +21,22 @@ func modalTitle(c *ui.Context, title, sub string) {
 
 func (a *app) exportModal(c *ui.Context) {
 	open := true
+	title := "导出成片"
+	detail := "字幕与曲谱直接烧进画面，不经过第二套渲染器"
+	switch {
+	case a.exportErr != "":
+		title = "导出失败"
+		detail = a.exportErr
+	case a.exportRunning:
+		title = "正在导出"
+		detail = "H.264 · AAC · 逐帧叠加"
+	case a.exportProgress >= 1:
+		title = "导出完成"
+		detail = a.exportPath
+	}
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(460).Gap(12).Children(func() {
-			modalTitle(c, "导出成片", "字幕与曲谱直接烧进画面，不经过第二套渲染器")
+			modalTitle(c, title, detail)
 			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 				text(c, "画幅", 10, pal.muted).Width(58)
 				segment(c, []string{"竖屏 1080×1920", "横屏 1920×1080"}, &a.orientation)
@@ -32,20 +45,48 @@ func (a *app) exportModal(c *ui.Context) {
 			exportRow(c, "音频", "AAC 192k · 原视频音轨")
 			exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
 			exportRow(c, "预计耗时", "约 4 分 20 秒")
-			if a.exporting {
+			if a.exportRunning || a.exportProgress > 0 {
+				progress := a.exportProgress
+				ui.Column(c).Gap(5).Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Children(func() {
+						text(c, "导出进度", 9.5, pal.muted)
+						ui.Box(c).Grow(1)
+						mono(c, fmt.Sprintf("%.0f%%", progress*100), 9.5, pal.text)
+					})
+					ui.Box(c).Height(6).FillWidth().Radius(3).Background(pal.line).
+						Draw(func(p *ui.Painter, r ui.Rect) {
+							p.Fill(
+								ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(progress), H: r.H},
+								pal.accent, 3,
+							)
+						})
+				})
+			}
+			if a.exportRunning {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
 					Radius(8).Background(pal.warnBG).Children(func() {
 					dot(c, pal.accent)
-					text(c, "导出任务已创建，关闭窗口后继续执行", 10, pal.muted)
+					text(c, "导出在后台执行，可以关闭这个窗口", 10, pal.muted)
 				})
+			} else if a.exportErr != "" {
+				text(c, a.exportErr, 9.5, pal.warn)
+			} else if a.exportProgress >= 1 {
+				mono(c, a.exportPath, 9, pal.good).SingleLine()
 			}
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ghostButton(c, "取消", func() { a.modal = modalNone })
-				primaryButton(c, "开始导出", func() {
-					a.exporting = true
-					a.modal = modalNone
-					a.toast(c, "已开始导出", exportName(a.proj.Title, a.orientation))
-				})
+				switch {
+				case a.exportRunning:
+					text(c, "导出中，先别关窗口…", 9.5, pal.faint)
+				case a.exportErr != "":
+					ghostButton(c, "关闭", func() { a.modal = modalNone })
+					primaryButton(c, "重试", func() { a.startExport(c) })
+				case a.exportProgress >= 1:
+					ghostButton(c, "关闭", func() { a.modal = modalNone })
+					primaryButton(c, "完成", func() { a.modal = modalNone })
+				default:
+					ghostButton(c, "取消", func() { a.modal = modalNone })
+					primaryButton(c, "开始导出", func() { a.startExport(c) })
+				}
 			})
 		})
 	})
