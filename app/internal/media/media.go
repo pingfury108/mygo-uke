@@ -62,6 +62,29 @@ func ExtractAudio(ctx context.Context, source, destination string) error {
 	return err
 }
 
+// ExtractPCM writes 16kHz mono signed 16-bit little-endian PCM for ASR.
+func ExtractPCM(ctx context.Context, source, destination string) error {
+	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+		return err
+	}
+	_, err := run(
+		ctx,
+		env("MYGO_UKE_FFMPEG", "ffmpeg"),
+		"-nostdin",
+		"-hide_banner",
+		"-loglevel", "error",
+		"-y",
+		"-i", source,
+		"-map", "0:a:0",
+		"-vn",
+		"-ac", "1",
+		"-ar", "16000",
+		"-f", "s16le",
+		destination,
+	)
+	return err
+}
+
 func run(ctx context.Context, name string, args ...string) ([]byte, error) {
 	output, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
 	if err != nil {

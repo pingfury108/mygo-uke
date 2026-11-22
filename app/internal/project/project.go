@@ -42,6 +42,7 @@ type Project struct {
 	Chords        []score.ChordSegment `json:"chords"`
 	Bars          []score.Bar          `json:"bars"`
 	Lines         []Line               `json:"lines"`
+	Warnings      []string             `json:"warnings,omitempty"`
 	Pattern       string               `json:"pattern"`
 	Style         Style                `json:"style"`
 }

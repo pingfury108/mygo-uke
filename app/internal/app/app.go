@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"mygo-uke/internal/asr"
 	"mygo-uke/internal/chordd"
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/score"
@@ -65,6 +66,7 @@ type app struct {
 	chorddOnline   bool
 	chorddChecked  bool
 	chorddAnalyzer string
+	asrConfig      asr.Config
 }
 
 // Run starts the native MyGo window.
@@ -104,6 +106,7 @@ func newApp() *app {
 		chordChoice:  "C",
 		chorddURL:    chorddBaseURL(),
 		exportSRT:    true,
+		asrConfig:    volcanoConfig(),
 	}
 }
 
@@ -112,6 +115,26 @@ func chorddBaseURL() string {
 		return url
 	}
 	return "http://MiWiFi-R1350-srv.local:8790"
+}
+
+func volcanoConfig() asr.Config {
+	key := os.Getenv("MYGO_UKE_VOLCANO_API_KEY")
+	if key == "" {
+		key = os.Getenv("VOLCANO_API_KEY")
+	}
+	return asr.Config{
+		APIKey:     key,
+		WSURL:      envOr("MYGO_UKE_VOLCANO_WS_URL", ""),
+		ResourceID: envOr("MYGO_UKE_VOLCANO_RESOURCE_ID", ""),
+		Model:      envOr("MYGO_UKE_VOLCANO_MODEL", ""),
+	}
+}
+
+func envOr(name, fallback string) string {
+	if value := os.Getenv(name); value != "" {
+		return value
+	}
+	return fallback
 }
 
 // watchChordd keeps the rail's service indicator honest. Network work stays

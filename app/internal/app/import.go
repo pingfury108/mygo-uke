@@ -105,11 +105,16 @@ func (a *app) startAnalysis(source string, importing bool) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
+		var transcriber pipeline.Transcriber
+		if a.asrConfig.APIKey != "" {
+			transcriber = pipeline.ASRTranscriber{Config: a.asrConfig}
+		}
 		built, path, err := pipeline.Import(
 			ctx,
 			source,
 			chordd.New(a.chorddURL),
 			pipeline.FFmpeg{},
+			transcriber,
 			project.Root(),
 			func(progress pipeline.Progress) {
 				mygo.RunOnMain(func() {
@@ -134,6 +139,9 @@ func (a *app) startAnalysis(source string, importing bool) {
 			a.applyImported(built, path, importing)
 			a.analysis = 1
 			a.jobStage = "完成"
+			if len(built.Warnings) > 0 {
+				a.jobStage = "完成 · 字幕未识别"
+			}
 			a.invalidate()
 		})
 	}()

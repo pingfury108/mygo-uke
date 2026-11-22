@@ -304,6 +304,14 @@ func (a *app) styleTab(c *ui.Context) {
 	ui.Column(c).Padding(9, 10, 9, 10).Radius(7).Gap(3).Background(pal.card).Children(func() {
 		mono(c, fmt.Sprintf("%.2fs · %.0f BPM", a.proj.Duration, a.proj.Tempo), 9, pal.muted)
 		mono(c, fmt.Sprintf("%d bars · %d lines", len(a.proj.Bars), len(a.proj.Lines)), 9, pal.faint)
+		asrState := "未配置"
+		if a.asrConfig.APIKey != "" {
+			asrState = "已配置"
+		}
+		mono(c, "ASR "+asrState, 8.5, pal.faint)
+		if len(a.proj.Warnings) > 0 {
+			mono(c, a.proj.Warnings[0], 8.5, pal.warn).SingleLine()
+		}
 		mono(c, a.proj.SourceHash, 8.5, pal.faint).SingleLine()
 	})
 }

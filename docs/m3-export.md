@@ -62,7 +62,7 @@ go test ./internal/export -run TestExportIntegration -v -count=1
 
 ## 已知限制
 
-- 导入工程尚未接 ASR，`lines` 为空时竖屏只显示和弦条/指法图，
+- 未配火山 Key 或转写失败时 `lines` 为空，竖屏只显示和弦条/指法图，
   横屏右侧退化为小节和弦表。
 - 使用源视频原音轨，尚未做人声分离或伴奏混音。
 - 导出任务没有取消按钮；关闭弹窗后任务仍在后台执行。

@@ -26,7 +26,7 @@ func TestImportIntegration(t *testing.T) {
 	defer cancel()
 
 	p, path, err := Import(
-		ctx, source, chordd.New(url), FFmpeg{}, t.TempDir(), nil,
+		ctx, source, chordd.New(url), FFmpeg{}, nil, t.TempDir(), nil,
 	)
 	if err != nil {
 		t.Fatal(err)
