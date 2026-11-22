@@ -244,7 +244,10 @@ func Available(c Chord) bool                 // 尤克里里弹不弹得了
   ],
 
   "pattern": "folk-basic",
-  "style": { "chordSize": 64, "subSize": 60, "accent": "#FFD166" }
+  "style": {
+    "chordSize": 64, "subSize": 60, "subtitleY": 78,
+    "accent": "#FFD166"
+  }
 }
 ```
 
@@ -315,8 +318,9 @@ func Available(c Chord) bool                 // 尤克里里弹不弹得了
 **核心交互：一把播放头驱动三处。** 拖进度 → 预览帧、字幕块高亮、谱面小节高亮同时动。
 
 - 播放头用 rAF 读 `video.currentTime`，**不要监听 `timeupdate`**（每秒只 4 次，抖）
-- 和弦编辑：点小节 → 弹和弦选择器（尤克里里常用 20 个的矩阵）→ 立刻重排
-- 字幕编辑：逐句卡片，点一下跳播放，改字即时反映
+- 和弦编辑：点小节 → 弹和弦选择器 → 立刻重排；手动修改在重新分析后保留
+- 字幕编辑：点卡片跳播放，双击编辑文字和起止时间；手动修改在重新分析后保留
+- 播放快捷键：空格/K 播放暂停，J/L 退/进 10 秒，←/→ 退/进 5 秒，M 静音
 - **状态只在主线程写**，goroutine 通过 `post` 回主线程（照 `mygo-video` 的规矩）
 
 ### 4.6 包职责边界

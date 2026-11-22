@@ -58,10 +58,11 @@ func (a *app) rail(c *ui.Context) {
 		}
 		ui.Box(c).Grow(1)
 		ui.Box(c).Height(1).FillWidth().Background(pal.line)
-		ui.Column(c).Padding(10, 5, 0, 5).Gap(8).Children(func() {
+		ui.Column(c).Padding(10, 0, 0, 0).Gap(8).Children(func() {
 			a.chorddState(c)
 			apiState(c, pal.warn, fmt.Sprintf("%d 个和弦待确认", a.reviewBars()))
-			b := ui.ButtonBase(c).Height(22).Padding(0).Label("设置与 API Key").FocusRing(false)
+			b := ui.ButtonBase(c).FillWidth().Height(22).Padding(0, 2, 0, 2).
+				Justify(ui.Start).Label("设置与 API Key").FocusRing(false)
 			if b.Hovered() {
 				b.Background(pal.sel)
 			}

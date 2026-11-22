@@ -156,7 +156,11 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 	frame.Children(func() {
 		center := ui.Box(c).Absolute().Left(sideW).Top(0).Width(centerW).Height(h)
 		center.Draw(func(p *ui.Painter, r ui.Rect) {
-			drawVideoPlaceholder(p, r, "人像 607 × 1080")
+			tag := "人像 607 × 1080"
+			if status := a.videoStatus(); status != "" {
+				tag = status
+			}
+			drawVideoPlaceholder(p, r, tag)
 		})
 		center.Children(func() {
 			a.videoLayer(c, ui.Cover)
@@ -234,7 +238,11 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 		Border(1, pal.frameLine).Background(ui.Hex("#171512")).
 		Shadow(0, 28, 60, 0, ui.RGBA(0, 0, 0, 0.34))
 	frame.Draw(func(p *ui.Painter, r ui.Rect) {
-		drawVideoPlaceholder(p, r, "原视频 · 9:16")
+		tag := "原视频 · 9:16"
+		if status := a.videoStatus(); status != "" {
+			tag = status
+		}
+		drawVideoPlaceholder(p, r, tag)
 	})
 	frame.DrawOver(func(p *ui.Painter, r ui.Rect) {
 		if a.proj.Style.ShowSafe {
@@ -246,7 +254,7 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 		a.chordStrip(c, bar, w, h)
 		diagramCorner(c, bar, w, h, a.proj.Capo, a.overlayAccent())
 		if hasLine {
-			subtitleOverlay(c, line.Text, w, h)
+			a.subtitleOverlay(c, line.Text, w, h)
 		}
 		if a.proj.Style.ShowSafe {
 			safeLabels(c, w, h)
@@ -432,12 +440,25 @@ func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color)
 	}
 }
 
-func subtitleOverlay(c *ui.Context, value string, w, h float32) {
-	ui.Box(c).Absolute().LeftPercent(5).RightPercent(5).Bottom(h * 0.19).
+func (a *app) subtitleOverlay(c *ui.Context, value string, w, h float32) {
+	left := w * 0.111
+	right := w * 0.111
+	usable := w - left - right
+	size := float32(a.proj.Style.SubSize) * h / 1920
+	if size < h*0.018 {
+		size = h * 0.018
+	}
+	top := float32(a.proj.Style.SubtitleY) / 100
+	if top <= 0 {
+		top = 0.78
+	}
+	top = min(max(top, 0.5), 0.84)
+	ui.Box(c).Absolute().Left(left).Right(right).Top(h * top).
 		Center().Children(func() {
-		ui.Row(c).Padding(7, 10, 7, 10).Radius(7).
+		ui.Row(c).Padding(h*0.009, h*0.012, h*0.009, h*0.012).Radius(h * 0.007).
 			Background(ui.RGBA(10, 9, 8, 0.58)).Children(func() {
-			label(c, value, 13.5, ui.Hex("#FFF8EA"), 600).SingleLine()
+			label(c, value, size, ui.Hex("#FFF8EA"), 600).
+				TextAlign(ui.Center).Width(usable - h*0.024)
 		})
 	})
 }
@@ -458,6 +479,7 @@ func (a *app) transport(c *ui.Context) {
 			mono(c, fmt.Sprintf("%.0f BPM", a.proj.Tempo), 9.5, pal.muted)
 			mono(c, fmt.Sprintf("%s 调 · Capo %d", a.proj.Key, a.proj.Capo), 9.5, pal.faint)
 			text(c, "民谣基础", 9.5, pal.faint)
+			mono(c, "Space · J/L", 8, pal.faint)
 		})
 	})
 }

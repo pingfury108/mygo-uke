@@ -99,12 +99,15 @@ func (a *app) subtitleTab(c *ui.Context) {
 			a.seekPlayer()
 			a.syncSelection()
 		})
+		if card.DoubleClicked() {
+			a.openLineEditor(index)
+		}
 		card.Children(func() {
 			ui.Column(c).FillWidth().Gap(3).Children(func() {
 				mono(c, fmt.Sprintf("%s — %s", timeText(l.Start), timeText(l.End)), 8.5, pal.faint)
 				label(c, l.Text, 12, pal.text, 500)
 				ui.Row(c).Gap(10).Children(func() {
-					text(c, "点卡片跳到这句", 9, pal.muted)
+					text(c, "点卡片跳转 · 双击编辑", 9, pal.muted)
 					if l.NeedsReview {
 						ui.Box(c).Grow(1)
 						text(c, "待确认", 8.5, pal.warn)
@@ -197,7 +200,7 @@ func (a *app) chordTab(c *ui.Context) {
 		}
 	})
 
-	sectionLabel(c, "按小节", fmt.Sprintf("%d 小节", len(a.proj.Bars)))
+	sectionLabel(c, "按小节", fmt.Sprintf("%d 小节 · 点击改", len(a.proj.Bars)))
 	currentIndex := score.BarIndexAt(a.proj.Bars, a.playhead)
 	for i, bar := range a.proj.Bars {
 		index := i
@@ -255,6 +258,7 @@ func (a *app) styleTab(c *ui.Context) {
 	sectionLabel(c, "叠加层", "竖屏实时预览")
 	sliderRow(c, "和弦字号", &a.proj.Style.ChordSize, a.saveCurrent)
 	sliderRow(c, "字幕字号", &a.proj.Style.SubSize, a.saveCurrent)
+	sliderPercentRow(c, "字幕位置", &a.proj.Style.SubtitleY, 60, 80, a.saveCurrent)
 
 	sectionLabel(c, "样式预设", "一键套用")
 	ui.Row(c).Gap(6).Children(func() {
@@ -364,6 +368,13 @@ func (a *app) styleTab(c *ui.Context) {
 		if len(a.proj.Warnings) > 0 {
 			mono(c, a.proj.Warnings[0], 8.5, pal.warn).SingleLine()
 		}
+		if a.playerErr != nil {
+			mono(c, "源视频："+a.playerErr.Error(), 8.5, pal.warn).SingleLine()
+		} else if a.player != nil {
+			if err := a.player.Err(); err != nil {
+				mono(c, "播放器："+err.Error(), 8.5, pal.warn).SingleLine()
+			}
+		}
 		mono(c, a.proj.SourceHash, 8.5, pal.faint).SingleLine()
 	})
 }
@@ -376,6 +387,19 @@ func sliderRow(c *ui.Context, name string, value *float64, onChange func()) {
 			mono(c, fmt.Sprintf("%.0f", *value), 9, pal.faint)
 		})
 		if ui.Slider(c, value, 32, 96).FillWidth().Changed() && onChange != nil {
+			onChange()
+		}
+	})
+}
+
+func sliderPercentRow(c *ui.Context, name string, value *float64, low, high float64, onChange func()) {
+	ui.Column(c).Gap(3).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			text(c, name, 10, pal.muted)
+			ui.Box(c).Grow(1)
+			mono(c, fmt.Sprintf("%.0f%%", *value), 9, pal.faint)
+		})
+		if ui.Slider(c, value, low, high).FillWidth().Changed() && onChange != nil {
 			onChange()
 		}
 	})

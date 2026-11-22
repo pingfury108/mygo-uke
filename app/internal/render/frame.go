@@ -46,8 +46,9 @@ const (
 )
 
 // Frame draws one full frame. Vertical is a 9:16 canvas with a top chord
-// strip and a subtitle at 70% height. Horizontal keeps the 607×1080 portrait
-// video centered and gives both sides to the current chord and the score.
+// strip and a configurable subtitle near the lower third. Horizontal keeps
+// the 607×1080 portrait video centered and gives both sides to the current
+// chord and the score.
 func Frame(spec Spec) image.Image {
 	if spec.Width <= 0 {
 		spec.Width = 1080
@@ -240,7 +241,12 @@ func subtitle(c *ui.Context, value string, spec Spec, style project.Style) {
 	if size < h*0.016 {
 		size = h * 0.016
 	}
-	ui.Box(c).Absolute().Left(left).Right(right).Top(h * 0.70).Children(func() {
+	top := float32(style.SubtitleY) / 100
+	if top <= 0 {
+		top = 0.78
+	}
+	top = min(max(top, 0.5), 0.84)
+	ui.Box(c).Absolute().Left(left).Right(right).Top(h * top).Children(func() {
 		ui.Row(c).Center().Children(func() {
 			ui.Row(c).Padding(h*0.009, h*0.012, h*0.009, h*0.012).
 				Radius(h * 0.007).Background(ui.RGBA(10, 9, 8, 0.66)).Children(func() {
@@ -430,7 +436,7 @@ func lineAt(p *project.Project, t float64) (project.Line, int, bool) {
 }
 
 func styleFor(p *project.Project) project.Style {
-	style := project.Style{ChordSize: 64, SubSize: 60, Accent: "#F3B544"}
+	style := project.Style{ChordSize: 64, SubSize: 60, SubtitleY: 78, Accent: "#F3B544"}
 	if p == nil {
 		return style
 	}
@@ -439,6 +445,9 @@ func styleFor(p *project.Project) project.Style {
 	}
 	if p.Style.SubSize > 0 {
 		style.SubSize = p.Style.SubSize
+	}
+	if p.Style.SubtitleY > 0 {
+		style.SubtitleY = p.Style.SubtitleY
 	}
 	if p.Style.Accent != "" {
 		style.Accent = p.Style.Accent

@@ -139,3 +139,19 @@ func TestDeleteRejectsForeignPath(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLoadFillsStyleDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "project.json")
+	data := []byte(`{"version":1,"title":"旧工程","duration":10}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Style.ChordSize != 64 || loaded.Style.SubSize != 60 ||
+		loaded.Style.SubtitleY != 78 || loaded.Style.Accent != "#F3B544" {
+		t.Fatalf("style = %+v", loaded.Style)
+	}
+}

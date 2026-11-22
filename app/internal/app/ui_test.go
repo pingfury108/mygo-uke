@@ -121,6 +121,42 @@ func TestTimelineDragScrubs(t *testing.T) {
 	}
 }
 
+func TestPlaybackShortcuts(t *testing.T) {
+	a := newApp()
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+
+	tt.Key(0, ui.KeySpace)
+	tt.Frame()
+	if !a.playing {
+		t.Fatal("space did not start playback")
+	}
+	tt.Key(0, ui.KeyK)
+	tt.Frame()
+	if a.playing {
+		t.Fatal("K did not pause playback")
+	}
+
+	a.playhead = 20
+	tt.Key(0, ui.KeyJ)
+	tt.Frame()
+	if a.playhead != 10 {
+		t.Fatalf("J seek = %.1f, want 10", a.playhead)
+	}
+	tt.Key(0, ui.KeyL)
+	tt.Frame()
+	if a.playhead != 20 {
+		t.Fatalf("L seek = %.1f, want 20", a.playhead)
+	}
+
+	muted := a.muted
+	tt.Key(0, ui.KeyM)
+	tt.Frame()
+	if a.muted == muted {
+		t.Fatal("M did not toggle mute")
+	}
+}
+
 func TestStudioAtMinimumSize(t *testing.T) {
 	a := newApp()
 	tt := ui.NewTester(a.view, 1100, 700)

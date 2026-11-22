@@ -61,6 +61,7 @@ type Line struct {
 type Style struct {
 	ChordSize float64 `json:"chordSize"`
 	SubSize   float64 `json:"subSize"`
+	SubtitleY float64 `json:"subtitleY,omitempty"`
 	Accent    string  `json:"accent"`
 	ShowSafe  bool    `json:"showSafe"`
 }
@@ -76,6 +77,7 @@ func New(title string) *Project {
 		Style: Style{
 			ChordSize: 64,
 			SubSize:   60,
+			SubtitleY: 78,
 			Accent:    "#F3B544",
 		},
 	}
@@ -165,6 +167,18 @@ func Load(path string) (*Project, error) {
 	}
 	if p.Pattern == "" {
 		p.Pattern = "folk-basic"
+	}
+	if p.Style.ChordSize <= 0 {
+		p.Style.ChordSize = 64
+	}
+	if p.Style.SubSize <= 0 {
+		p.Style.SubSize = 60
+	}
+	if p.Style.SubtitleY == 0 {
+		p.Style.SubtitleY = 78
+	}
+	if p.Style.Accent == "" {
+		p.Style.Accent = "#F3B544"
 	}
 	return &p, nil
 }

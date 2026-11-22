@@ -61,8 +61,27 @@ func (a *app) playerUsable() bool {
 }
 
 func (a *app) videoLayer(c *ui.Context, fit ui.Fit) {
-	if a.player == nil || !a.player.Ready() {
+	if a.player == nil {
 		return
 	}
+	// Mount the Video even before the first frame: the element is what
+	// asks the engine for pictures, and the engine becomes Ready only once
+	// one is taken. Gating this on Ready would never show the video.
 	ui.Video(c, a.player).Fill().Fit(fit)
+}
+
+func (a *app) videoStatus() string {
+	if a.playerErr != nil {
+		return "视频无法打开"
+	}
+	if a.player == nil {
+		return "没有源视频"
+	}
+	if err := a.player.Err(); err != nil {
+		return "视频无法播放"
+	}
+	if !a.player.Ready() {
+		return "正在加载视频…"
+	}
+	return ""
 }

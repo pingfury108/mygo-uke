@@ -232,14 +232,25 @@ func (a *app) handleKeys(c *ui.Context) {
 		}
 		return
 	}
-	if c.Shortcut(0, ui.KeySpace) {
-		a.togglePlay()
-	}
-	if c.Shortcut(0, ui.KeyLeft) {
-		a.seek(-5)
-	}
-	if c.Shortcut(0, ui.KeyRight) {
-		a.seek(5)
+	if !c.FocusTakesText() {
+		if c.Shortcut(0, ui.KeySpace) || c.Shortcut(0, ui.KeyK) {
+			a.togglePlay()
+		}
+		if c.Shortcut(0, ui.KeyJ) {
+			a.seek(-10)
+		}
+		if c.Shortcut(0, ui.KeyL) {
+			a.seek(10)
+		}
+		if c.Shortcut(0, ui.KeyLeft) {
+			a.seek(-5)
+		}
+		if c.Shortcut(0, ui.KeyRight) {
+			a.seek(5)
+		}
+		if c.Shortcut(0, ui.KeyM) {
+			a.setMuted(!a.muted)
+		}
 	}
 	if c.Shortcut(ui.Cmd, ui.KeyS) {
 		a.save()
