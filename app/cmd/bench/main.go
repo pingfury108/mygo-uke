@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-uke/internal/app"
+	"mygo-uke/internal/render"
 )
 
 func main() {
@@ -24,7 +25,7 @@ func main() {
 
 	videoWidth, videoHeight := *width, *height
 	if *orientation == 1 {
-		videoWidth = videoHeight * 607 / 1080
+		videoWidth = render.HorizontalVideoWidth(videoHeight)
 	}
 	background := image.NewRGBA(image.Rect(0, 0, videoWidth, videoHeight))
 	draw.Draw(

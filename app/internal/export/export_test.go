@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	renderplugin "github.com/egoist/mygo/plugins/render"
+
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/score"
 )
@@ -88,5 +90,53 @@ func TestWriteSRT(t *testing.T) {
 	}
 	if got := SRTName("/tmp/song.mp4"); got != "/tmp/song.srt" {
 		t.Fatalf("SRTName = %q", got)
+	}
+}
+
+func TestLayout(t *testing.T) {
+	width, height, videoWidth, videoHeight := layout(0)
+	if width != 1080 || height != 1920 || videoWidth != 1080 || videoHeight != 1920 {
+		t.Fatalf("vertical layout = %d×%d video %d×%d",
+			width, height, videoWidth, videoHeight)
+	}
+	width, height, videoWidth, videoHeight = layout(1)
+	if width != 1920 || height != 1080 || videoWidth != 606 || videoHeight != 1080 {
+		t.Fatalf("horizontal layout = %d×%d video %d×%d",
+			width, height, videoWidth, videoHeight)
+	}
+}
+
+func TestRendererFor(t *testing.T) {
+	t.Setenv("MYGO_UKE_RENDERER", "cpu")
+	if got := rendererFor(); got != renderplugin.CPU {
+		t.Fatalf("renderer = %v", got)
+	}
+	t.Setenv("MYGO_UKE_RENDERER", "gpu")
+	if got := rendererFor(); got != renderplugin.GPU {
+		t.Fatalf("renderer = %v", got)
+	}
+	t.Setenv("MYGO_UKE_RENDERER", "")
+	t.Setenv("MYGO_UKE_ENCODER", "cpu")
+	if got := rendererFor(); got != renderplugin.Auto {
+		t.Fatalf("renderer = %v", got)
+	}
+	if got := encoderFor(); got != renderplugin.FFmpeg {
+		t.Fatalf("encoder = %v", got)
+	}
+	t.Setenv("MYGO_UKE_ENCODER", "")
+	if got := rendererFor(); got != renderplugin.Auto {
+		t.Fatalf("renderer = %v", got)
+	}
+	if got := encoderFor(); got != renderplugin.System {
+		t.Fatalf("encoder = %v", got)
+	}
+}
+
+func TestMuxArgs(t *testing.T) {
+	args := strings.Join(muxArgs("/tmp/video.mp4", "/tmp/source.mp4", "/tmp/out.mp4"), " ")
+	for _, want := range []string{"-c:v copy", "-c:a aac", "+faststart", "-shortest"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("mux args = %q, missing %q", args, want)
+		}
 	}
 }

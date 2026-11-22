@@ -27,7 +27,7 @@ func label(c *ui.Context, value string, size float32, color ui.Color, weight int
 }
 
 // Spec is one output frame. Background is the decoded video, already scaled
-// for the layout (full frame for vertical, 607×1080 for horizontal).
+// for the layout (full frame for vertical, a portrait strip for horizontal).
 type Spec struct {
 	Width       int
 	Height      int
@@ -43,13 +43,69 @@ const (
 	ink       = "#FFF8EA"
 	panel     = "#17181C"
 	panelEdge = "#2A2C31"
+	canvas    = "#0F1013"
 )
 
 // Frame draws one full frame. Vertical is a 9:16 canvas with a top chord
 // strip and a configurable subtitle near the lower third. Horizontal keeps
-// the 607×1080 portrait video centered and gives both sides to the current
-// chord and the score.
+// the portrait video centered and gives both sides to the current chord
+// and the score.
 func Frame(spec Spec) image.Image {
+	spec = normalized(spec)
+	view := func(c *ui.Context) {
+		ui.Box(c).Size(float32(spec.Width), float32(spec.Height)).
+			Background(ui.Hex(canvas)).Children(func() {
+			Backdrop(c, spec)
+			Overlay(c, spec)
+		})
+	}
+	tester := ui.NewTester(view, spec.Width, spec.Height)
+	tester.Frame()
+	return tester.Image()
+}
+
+// Backdrop draws what sits below the overlay: the side panels of the
+// horizontal layout and the decoded video frame.
+func Backdrop(c *ui.Context, spec Spec) {
+	spec = normalized(spec)
+	w, h := float32(spec.Width), float32(spec.Height)
+	videoW := float32(spec.VideoWidth)
+	videoH := float32(spec.VideoHeight)
+	videoX := float32(0)
+	if spec.Orientation == 1 {
+		videoX = (w - videoW) / 2
+		sideW := videoX
+		ui.Box(c).Absolute().Left(0).Top(0).Width(w).Height(h).
+			Draw(func(painter *ui.Painter, r ui.Rect) {
+				painter.Fill(r, ui.Hex(panel), 0)
+				if sideW > 0 {
+					painter.Line(sideW, 0, sideW, h, 1, ui.Hex(panelEdge))
+					painter.Line(w-sideW, 0, w-sideW, h, 1, ui.Hex(panelEdge))
+				}
+			})
+	}
+	if spec.Background != nil {
+		ui.Image(c, spec.Background).Absolute().Left(videoX).Top(0).
+			Size(videoW, videoH)
+	}
+}
+
+// Overlay draws everything above the video: scrims, chords, fingering,
+// lyrics and the score. It has no background of its own, so preview and
+// GPU export can place it over any decoded frame.
+func Overlay(c *ui.Context, spec Spec) {
+	spec = normalized(spec)
+	style := styleFor(spec.Project)
+	accent := colorOr(style.Accent)
+	accentInk := inkFor(style.Accent)
+	if spec.Orientation == 1 {
+		horizontal(c, spec, style, accent, accentInk)
+		return
+	}
+	vertical(c, spec, style, accent, accentInk)
+}
+
+func normalized(spec Spec) Spec {
 	if spec.Width <= 0 {
 		spec.Width = 1080
 	}
@@ -62,32 +118,21 @@ func Frame(spec Spec) image.Image {
 	if spec.VideoHeight <= 0 {
 		spec.VideoHeight = spec.Height
 	}
-	style := styleFor(spec.Project)
-	accent := colorOr(style.Accent)
-	accentInk := inkFor(style.Accent)
+	return spec
+}
 
-	view := func(c *ui.Context) {
-		ui.Box(c).Size(float32(spec.Width), float32(spec.Height)).
-			Background(ui.Hex("#0F1013")).Children(func() {
-			if spec.Orientation == 1 {
-				horizontal(c, spec, style, accent, accentInk)
-				return
-			}
-			vertical(c, spec, style, accent, accentInk)
-		})
-	}
-	tester := ui.NewTester(view, spec.Width, spec.Height)
-	tester.Frame()
-	return tester.Image()
+// HorizontalVideoWidth returns the width of the portrait video centered
+// in a horizontal frame of height: 9:16, rounded down to an even width
+// for 4:2:0 chroma.
+func HorizontalVideoWidth(height int) int {
+	w := height * 607 / 1080
+	return w - w%2
 }
 
 func vertical(c *ui.Context, spec Spec, style project.Style, accent, accentInk ui.Color) {
 	w, h := float32(spec.Width), float32(spec.Height)
 	scrim(c, ui.Rect{X: 0, Y: 0, W: w, H: h * 0.26}, true)
 	scrim(c, ui.Rect{X: 0, Y: h * 0.55, W: w, H: h * 0.45}, false)
-	if spec.Background != nil {
-		ui.Image(c, spec.Background).Absolute().Left(0).Top(0).Size(w, h)
-	}
 
 	p := spec.Project
 	bar, index := barAt(p, spec.Time)
@@ -123,21 +168,8 @@ func vertical(c *ui.Context, spec Spec, style project.Style, accent, accentInk u
 func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk ui.Color) {
 	w, h := float32(spec.Width), float32(spec.Height)
 	videoW := float32(spec.VideoWidth)
-	videoH := float32(spec.VideoHeight)
 	videoX := (w - videoW) / 2
 	sideW := videoX
-
-	ui.Box(c).Absolute().Left(0).Top(0).Width(w).Height(h).
-		Draw(func(painter *ui.Painter, r ui.Rect) {
-			painter.Fill(r, ui.Hex(panel), 0)
-			if sideW > 0 {
-				painter.Line(sideW, 0, sideW, h, 1, ui.Hex(panelEdge))
-				painter.Line(w-sideW, 0, w-sideW, h, 1, ui.Hex(panelEdge))
-			}
-		})
-	if spec.Background != nil {
-		ui.Image(c, spec.Background).Absolute().Left(videoX).Top(0).Size(videoW, videoH)
-	}
 
 	p := spec.Project
 	bar, index := barAt(p, spec.Time)

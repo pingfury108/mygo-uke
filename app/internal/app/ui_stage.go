@@ -140,7 +140,7 @@ func (a *app) preview(c *ui.Context) {
 func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 	bar, _, _ := a.barAt(a.playhead)
 	_, lineIndex, _ := a.lineAt(a.playhead)
-	centerW := h * 607 / 1080
+	centerW := float32(render.HorizontalVideoWidth(int(h)))
 	sideW := (w - centerW) / 2
 
 	frame := ui.Box(c).Size(w, h).Radius(15).Clip().
@@ -156,7 +156,7 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 	frame.Children(func() {
 		center := ui.Box(c).Absolute().Left(sideW).Top(0).Width(centerW).Height(h)
 		center.Draw(func(p *ui.Painter, r ui.Rect) {
-			tag := "人像 607 × 1080"
+			tag := fmt.Sprintf("人像 %d × 1080", render.HorizontalVideoWidth(1080))
 			if status := a.videoStatus(); status != "" {
 				tag = status
 			}

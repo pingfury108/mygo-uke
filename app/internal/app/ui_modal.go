@@ -35,7 +35,7 @@ func (a *app) exportModal(c *ui.Context) {
 		if a.exportStopping {
 			title = "正在取消"
 		}
-		detail = "H.264 · AAC · 逐帧叠加"
+		detail = "H.264 · AAC · 逐帧叠加 · 硬件编码优先"
 	case a.exportProgress >= 1:
 		title = "导出完成"
 		detail = a.exportPath
@@ -47,26 +47,27 @@ func (a *app) exportModal(c *ui.Context) {
 				text(c, "画幅", 10, pal.muted).Width(58)
 				segment(c, []string{"竖屏 1080×1920", "横屏 1920×1080"}, &a.orientation)
 			})
-			exportRow(c, "视频", "H.264 · CRF 18 · yuv420p · faststart")
+			exportRow(c, "视频", "H.264 · GPU 优先，CPU 回退 · faststart")
 			exportRow(c, "音频", "AAC 192k · 原视频音轨")
 			exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
 			exportRow(c, "预计耗时", a.exportEstimate())
+			exportRow(c, "字幕", "已烧进画面 · 逐句")
 			if a.exportRunning || a.exportProgress > 0 {
-				value := "不导出"
+				value := "不额外写入"
 				if a.exportSRT {
-					value = "SRT · 逐句"
+					value = "逐句 · 与视频同目录"
 				}
-				exportRow(c, "字幕", value)
+				exportRow(c, "附加 SRT", value)
 			} else {
 				ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
 					AlignItems(ui.Center).Children(func() {
-					text(c, "字幕", 10, pal.muted).Width(58)
-					mono(c, "同时导出 SRT", 9.5, pal.text)
+					text(c, "附加 SRT", 10, pal.muted).Width(58)
+					mono(c, "可选 · 不改动已烧录画面", 9.5, pal.text)
 					ui.Box(c).Grow(1)
 					ui.Switch(c, &a.exportSRT)
 				})
 				if a.exportSRT && len(a.proj.Lines) == 0 {
-					text(c, "工程还没有字幕，这次会跳过 SRT", 9, pal.faint)
+					text(c, "工程还没有字幕，这次不会生成 SRT", 9, pal.faint)
 				}
 			}
 			if a.exportRunning || a.exportProgress > 0 {

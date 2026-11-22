@@ -14,7 +14,7 @@ func RenderExportFrame(width, height int, background *ui.Bitmap, orientation int
 	p := demoProject()
 	videoWidth, videoHeight := width, height
 	if orientation == 1 {
-		videoWidth, videoHeight = height*607/1080, height
+		videoWidth, videoHeight = render.HorizontalVideoWidth(height), height
 	}
 	return render.Frame(render.Spec{
 		Width:       width,

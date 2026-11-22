@@ -130,6 +130,8 @@ func (a *app) runExport(
 				} else {
 					a.exportNote = "工程无字幕，未生成 SRT"
 				}
+			} else if len(p.Lines) > 0 {
+				a.exportNote = "字幕与曲谱已烧进视频"
 			}
 		}
 		a.invalidate()
@@ -151,9 +153,9 @@ func (a *app) exportEstimate() string {
 	if a.proj == nil || a.proj.Duration <= 0 {
 		return "按导出进度更新"
 	}
-	factor := 2.5
+	factor := 0.7
 	if a.orientation == 1 {
-		factor = 1.8
+		factor = 0.6
 	}
 	return "约 " + durationWords(time.Duration(a.proj.Duration*factor*float64(time.Second)))
 }

@@ -6,13 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
-	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
+	renderplugin "github.com/egoist/mygo/plugins/render"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-uke/internal/media"
@@ -20,10 +21,7 @@ import (
 	"mygo-uke/internal/render"
 )
 
-const (
-	fps = 30
-	crf = 18
-)
+const fps = 30
 
 // Run exports p from source into output. orientation 0 is vertical.
 func Run(
@@ -42,140 +40,103 @@ func Run(
 	if _, err := os.Stat(source); err != nil {
 		return fmt.Errorf("export source: %w", err)
 	}
-	width, height := 1080, 1920
-	videoWidth, videoHeight := width, height
-	if orientation == 1 {
-		width, height = 1920, 1080
-		videoWidth, videoHeight = height*607/1080, height
-	}
 	if err := os.MkdirAll(filepath.Dir(output), 0o700); err != nil {
 		return err
 	}
-
-	filter := fmt.Sprintf(
-		"scale=%d:%d:force_original_aspect_ratio=increase,crop=%d:%d,fps=%d",
-		videoWidth, videoHeight, videoWidth, videoHeight, fps,
-	)
-	decoder := exec.CommandContext(
-		ctx,
-		media.FFmpegPath(),
-		"-nostdin", "-hide_banner", "-loglevel", "error",
-		"-i", source,
-		"-vf", filter,
-		"-f", "rawvideo",
-		"-pix_fmt", "rgba",
-		"-",
-	)
-	decoderOut, err := decoder.StdoutPipe()
+	width, height, videoWidth, videoHeight := layout(orientation)
+	frames, err := frameCount(ctx, source, p.Duration)
 	if err != nil {
 		return err
 	}
-	var decoderLog bytes.Buffer
-	decoder.Stderr = &decoderLog
-	if err := decoder.Start(); err != nil {
-		return err
-	}
-	decoderWaited := false
-	defer func() {
-		if !decoderWaited && decoder.Process != nil {
-			_ = decoder.Process.Kill()
-			_ = decoder.Wait()
-		}
-	}()
 
-	encoder := exec.CommandContext(
-		ctx,
-		media.FFmpegPath(),
-		"-nostdin", "-hide_banner", "-loglevel", "error",
-		"-y",
-		"-f", "rawvideo",
-		"-pix_fmt", "rgba",
-		"-s", fmt.Sprintf("%dx%d", width, height),
-		"-r", fmt.Sprint(fps),
-		"-i", "-",
-		"-i", source,
-		"-map", "0:v:0",
-		"-map", "1:a:0?",
-		"-c:v", "libx264",
-		"-preset", "medium",
-		"-crf", fmt.Sprint(crf),
-		"-pix_fmt", "yuv420p",
-		"-c:a", "aac",
-		"-b:a", "192k",
-		"-movflags", "+faststart",
-		"-shortest",
-		output,
-	)
-	encoderIn, err := encoder.StdinPipe()
-	if err != nil {
-		return err
+	renderCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	renderer := rendererFor()
+	format := feedI420
+	if renderer == renderplugin.CPU {
+		format = feedRGBA
 	}
-	var encoderLog bytes.Buffer
-	encoder.Stderr = &encoderLog
-	if err := encoder.Start(); err != nil {
-		return err
-	}
+	feed := newFrameFeed(renderCtx, cancel, source, videoWidth, videoHeight, format)
+	defer feed.Close()
 
-	frameSize := videoWidth * videoHeight * 4
-	buffer := make([]byte, frameSize)
-	bitmap := ui.NewBitmap(image.NewRGBA(image.Rect(0, 0, videoWidth, videoHeight)))
-	frame := 0
-	var writeErr error
-	for {
-		if _, err := io.ReadFull(decoderOut, buffer); err != nil {
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-				writeErr = fmt.Errorf("export decoder: %w", err)
+	debug := os.Getenv("MYGO_UKE_EXPORT_DEBUG") != ""
+	started := time.Now()
+	var rendererName string
+	comp := renderplugin.Composition{
+		Width: width, Height: height, FPS: fps, Frames: frames,
+		Background: ui.Hex("#0F1013"),
+		View: func(c *ui.Context, f renderplugin.Frame) {
+			spec := render.Spec{
+				Width:       width,
+				Height:      height,
+				VideoWidth:  videoWidth,
+				VideoHeight: videoHeight,
+				Background:  feed.At(f.Index),
+				Project:     p,
+				Time:        f.Seconds(),
+				Orientation: orientation,
 			}
-			break
+			render.Backdrop(c, spec)
+			render.Overlay(c, spec)
+		},
+	}
+	tmpVideo := output + ".render.mp4"
+	_ = os.Remove(tmpVideo)
+	defer os.Remove(tmpVideo)
+	renderVideo := func(renderer renderplugin.Renderer, encoder renderplugin.Encoder) error {
+		options := renderplugin.Options{
+			Renderer: renderer,
+			Encoder:  encoder,
+			FFmpeg:   media.FFmpegPath(),
+			Progress: func(pr renderplugin.Progress) {
+				if debug && pr.Renderer != rendererName {
+					rendererName = pr.Renderer
+					fmt.Fprintf(os.Stderr, "export: renderer=%s\n", rendererName)
+				}
+				if progress != nil && pr.Frames > 0 {
+					progress(min(0.9, float64(pr.Done)/float64(pr.Frames)*0.9))
+				}
+			},
 		}
-		pixels := &image.RGBA{
-			Pix:    buffer,
-			Stride: videoWidth * 4,
-			Rect:   image.Rect(0, 0, videoWidth, videoHeight),
-		}
-		bitmap.Update(pixels)
-		seconds := float64(frame) / fps
-		out := render.Frame(render.Spec{
-			Width:       width,
-			Height:      height,
-			VideoWidth:  videoWidth,
-			VideoHeight: videoHeight,
-			Background:  bitmap,
-			Project:     p,
-			Time:        seconds,
-			Orientation: orientation,
-		})
-		if err := writeFrame(encoderIn, out, width); err != nil {
-			writeErr = fmt.Errorf("export encoder: %w", err)
-			break
-		}
-		frame++
-		if progress != nil && p.Duration > 0 {
-			progress(min(0.99, seconds/p.Duration))
-		}
+		return renderplugin.Video(renderCtx, comp, tmpVideo, options)
 	}
 
-	_ = encoderIn.Close()
-	encoderErr := encoder.Wait()
-	if writeErr != nil && decoder.Process != nil {
-		_ = decoder.Process.Kill()
+	encoder := encoderFor()
+	err = renderVideo(renderer, encoder)
+	if err != nil && encoder == renderplugin.System && !forcedGPU() &&
+		!errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) &&
+		feed.Err() == nil {
+		if debug {
+			fmt.Fprintf(os.Stderr, "export: system encoder failed, retrying on CPU: %v\n", err)
+		}
+		feed.Reset(feedRGBA)
+		if progress != nil {
+			progress(0)
+		}
+		_ = os.Remove(tmpVideo)
+		err = renderVideo(renderplugin.CPU, renderplugin.FFmpeg)
 	}
-	decoderErr := decoder.Wait()
-	decoderWaited = true
-	if writeErr != nil {
-		return writeErr
+	if err != nil {
+		if feedErr := feed.Err(); feedErr != nil {
+			return feedErr
+		}
+		return fmt.Errorf("export render: %w", err)
 	}
-	if err := ctx.Err(); err != nil {
+	if debug {
+		fmt.Fprintf(os.Stderr, "export: render=%s frames=%d\n",
+			time.Since(started).Round(time.Millisecond), frames)
+	}
+	if progress != nil {
+		progress(0.92)
+	}
+	muxStarted := time.Now()
+	if err := mux(ctx, tmpVideo, source, output); err != nil {
 		return err
 	}
-	if decoderErr != nil {
-		return fmt.Errorf("export decoder: %w: %s", decoderErr, strings.TrimSpace(decoderLog.String()))
-	}
-	if encoderErr != nil {
-		return fmt.Errorf("export encoder: %w: %s", encoderErr, strings.TrimSpace(encoderLog.String()))
-	}
-	if frame == 0 {
-		return errors.New("export: decoder produced no frames")
+	if debug {
+		fmt.Fprintf(os.Stderr, "export: mux=%s total=%s output=%s\n",
+			time.Since(muxStarted).Round(time.Millisecond),
+			time.Since(started).Round(time.Millisecond), output)
 	}
 	if progress != nil {
 		progress(1)
@@ -183,23 +144,75 @@ func Run(
 	return nil
 }
 
-func writeFrame(w io.Writer, frame image.Image, width int) error {
-	rgba, ok := frame.(*image.RGBA)
-	if !ok {
-		return fmt.Errorf("unexpected frame type %T", frame)
+func layout(orientation int) (width, height, videoWidth, videoHeight int) {
+	if orientation == 1 {
+		return 1920, 1080, render.HorizontalVideoWidth(1080), 1080
 	}
-	stride := width * 4
-	if rgba.Stride == stride {
-		_, err := w.Write(rgba.Pix)
-		return err
+	return 1080, 1920, 1080, 1920
+}
+
+func frameCount(ctx context.Context, source string, fallback float64) (int, error) {
+	seconds := fallback
+	if value, err := media.Duration(ctx, source); err == nil && value > 0 {
+		seconds = value
 	}
-	row := make([]byte, stride)
-	for y := rgba.Rect.Min.Y; y < rgba.Rect.Max.Y; y++ {
-		start := rgba.PixOffset(rgba.Rect.Min.X, y)
-		copy(row, rgba.Pix[start:start+stride])
-		if _, err := w.Write(row); err != nil {
-			return err
+	frames := int(math.Round(seconds * fps))
+	if frames <= 0 {
+		return 0, errors.New("export: source video has no frames")
+	}
+	return frames, nil
+}
+
+func rendererFor() renderplugin.Renderer {
+	switch strings.ToLower(os.Getenv("MYGO_UKE_RENDERER")) {
+	case "cpu":
+		return renderplugin.CPU
+	case "gpu":
+		return renderplugin.GPU
+	}
+	return renderplugin.Auto
+}
+
+func encoderFor() renderplugin.Encoder {
+	switch strings.ToLower(os.Getenv("MYGO_UKE_ENCODER")) {
+	case "cpu", "libx264":
+		return renderplugin.FFmpeg
+	}
+	return renderplugin.System
+}
+
+func forcedGPU() bool {
+	return strings.EqualFold(os.Getenv("MYGO_UKE_RENDERER"), "gpu")
+}
+
+func mux(ctx context.Context, video, source, output string) error {
+	tmp := output + ".mux.mp4"
+	_ = os.Remove(tmp)
+	defer os.Remove(tmp)
+	cmd := exec.CommandContext(ctx, media.FFmpegPath(), muxArgs(video, source, tmp)...)
+	var log bytes.Buffer
+	cmd.Stderr = &log
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
+		return fmt.Errorf("export mux: %w: %s", err, strings.TrimSpace(log.String()))
 	}
-	return nil
+	return os.Rename(tmp, output)
+}
+
+func muxArgs(video, source, output string) []string {
+	return []string{
+		"-nostdin", "-hide_banner", "-loglevel", "error", "-y",
+		"-i", video,
+		"-i", source,
+		"-map", "0:v:0",
+		"-map", "1:a:0?",
+		"-c:v", "copy",
+		"-c:a", "aac",
+		"-b:a", "192k",
+		"-movflags", "+faststart",
+		"-shortest",
+		output,
+	}
 }
