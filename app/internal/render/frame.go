@@ -15,7 +15,7 @@ import (
 )
 
 func text(c *ui.Context, value string, size float32, color ui.Color) ui.Element {
-	return ui.Text(c, value).FontSize(size).TextColor(color)
+	return withFont(ui.Text(c, value).FontSize(size).TextColor(color))
 }
 
 func mono(c *ui.Context, value string, size float32, color ui.Color) ui.Element {
@@ -23,7 +23,7 @@ func mono(c *ui.Context, value string, size float32, color ui.Color) ui.Element 
 }
 
 func label(c *ui.Context, value string, size float32, color ui.Color, weight int) ui.Element {
-	return ui.Text(c, value).FontSize(size).TextColor(color).FontWeight(weight)
+	return withFont(ui.Text(c, value).FontSize(size).TextColor(color).FontWeight(weight))
 }
 
 // Spec is one output frame. Background is the decoded video, already scaled

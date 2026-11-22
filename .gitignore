@@ -1,6 +1,9 @@
 .DS_Store
 app/build/
 app/.mygo/
+app/resources/*/ffmpeg
+app/resources/*/ffprobe
+app/resources/*/fonts/
 chordd/.venv/
 chordd/**/__pycache__/
 chordd/.pytest_cache/

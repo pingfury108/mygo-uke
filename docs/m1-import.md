@@ -29,8 +29,7 @@
 ```text
 MYGO_UKE_CHORDD=http://host:8790    chordd 地址
 MYGO_UKE_PROJECTS=/path/to/library 工程库目录
-MYGO_UKE_FFMPEG=/path/to/ffmpeg     ffmpeg 路径
-MYGO_UKE_FFPROBE=/path/to/ffprobe   ffprobe 路径
+MYGO_UKE_FFMPEG=/path/to/ffmpeg     ffmpeg 路径；不配则找内置资源或 PATH
 MYGO_UKE_VOLCANO_API_KEY=...        火山 ASR Key；不配则只分析和弦
 MYGO_UKE_VOLCANO_RESOURCE_ID=...    资源 ID，默认 2.0 小时版
 MYGO_UKE_VOLCANO_WS_URL=...         WebSocket 端点，默认官方 v3

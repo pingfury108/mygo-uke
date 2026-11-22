@@ -15,6 +15,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"mygo-uke/internal/media"
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/render"
 )
@@ -57,7 +58,7 @@ func Run(
 	)
 	decoder := exec.CommandContext(
 		ctx,
-		ffmpegPath(),
+		media.FFmpegPath(),
 		"-nostdin", "-hide_banner", "-loglevel", "error",
 		"-i", source,
 		"-vf", filter,
@@ -84,7 +85,7 @@ func Run(
 
 	encoder := exec.CommandContext(
 		ctx,
-		ffmpegPath(),
+		media.FFmpegPath(),
 		"-nostdin", "-hide_banner", "-loglevel", "error",
 		"-y",
 		"-f", "rawvideo",
@@ -201,11 +202,4 @@ func writeFrame(w io.Writer, frame image.Image, width int) error {
 		}
 	}
 	return nil
-}
-
-func ffmpegPath() string {
-	if value := os.Getenv("MYGO_UKE_FFMPEG"); value != "" {
-		return value
-	}
-	return "ffmpeg"
 }

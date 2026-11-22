@@ -1,5 +1,7 @@
 {
   "name": "MyGo Uke",
+  "slug": "mygo-uke",
   "identifier": "dev.mygo.uke",
+  "version": "0.1.0",
   "out": "build"
 }

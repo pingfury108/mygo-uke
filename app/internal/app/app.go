@@ -92,6 +92,8 @@ type app struct {
 
 // Run starts the native MyGo window.
 func Run() error {
+	registerBundledFont()
+	applyFontFamily()
 	a := newApp()
 	mygo.App.WhenReady(func() {
 		a.loadLibrary()

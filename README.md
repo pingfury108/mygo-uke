@@ -78,6 +78,9 @@ chordd 地址和火山 ASR Key 也可以在应用内「设置与 API Key」里�
 小节，但保留用户改过的字幕和手动和弦。样式字号、强调色和安全区会随
 工程自动保存。导出过程中可以取消，进度里会显示实时剩余时间。
 
+打包分发（内置 ffmpeg、思源黑体子集、图标、签名/公证）见
+`docs/packaging.md`。
+
 - M0 实测记录：`docs/m0-validation.md`
 - M1 导入管线：`docs/m1-import.md`
 - M3 导出管线：`docs/m3-export.md`

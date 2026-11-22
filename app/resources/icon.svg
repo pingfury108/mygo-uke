@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1B1D22"/>
+      <stop offset="0.55" stop-color="#121317"/>
+      <stop offset="1" stop-color="#090A0C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.72" cy="0.18" r="0.72">
+      <stop offset="0" stop-color="#F3B544" stop-opacity="0.28"/>
+      <stop offset="0.52" stop-color="#F3B544" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#F3B544" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#F8C866"/>
+      <stop offset="0.55" stop-color="#F3B544"/>
+      <stop offset="1" stop-color="#D99425"/>
+    </linearGradient>
+    <filter id="tileShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="22" stdDeviation="30" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+
+  <rect x="64" y="64" width="896" height="896" rx="204" fill="url(#bg)"/>
+  <rect x="65.5" y="65.5" width="893" height="893" rx="202.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="3"/>
+  <rect x="64" y="64" width="896" height="896" rx="204" fill="url(#glow)"/>
+
+  <circle cx="512" cy="512" r="304" fill="none" stroke="#F3B544" stroke-opacity="0.13" stroke-width="3"/>
+  <circle cx="512" cy="512" r="246" fill="none" stroke="#F3B544" stroke-opacity="0.08" stroke-width="2"/>
+
+  <g stroke="#F2EDE4" stroke-opacity="0.18" stroke-width="7" stroke-linecap="round">
+    <path d="M452 196V828"/>
+    <path d="M492 182V842"/>
+    <path d="M532 182V842"/>
+    <path d="M572 196V828"/>
+  </g>
+  <g fill="#F3B544" fill-opacity="0.55">
+    <circle cx="452" cy="196" r="9"/>
+    <circle cx="492" cy="182" r="9"/>
+    <circle cx="532" cy="182" r="9"/>
+    <circle cx="572" cy="196" r="9"/>
+    <circle cx="452" cy="828" r="9"/>
+    <circle cx="492" cy="842" r="9"/>
+    <circle cx="532" cy="842" r="9"/>
+    <circle cx="572" cy="828" r="9"/>
+  </g>
+
+  <rect x="326" y="326" width="372" height="372" rx="100" fill="url(#amber)" filter="url(#tileShadow)"/>
+  <rect x="327.5" y="327.5" width="369" height="369" rx="98.5" fill="none" stroke="#FFF3D2" stroke-opacity="0.35" stroke-width="3"/>
+  <text x="512" y="590" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="252" font-weight="800" letter-spacing="-8" fill="#1D1507">M</text>
+</svg>
