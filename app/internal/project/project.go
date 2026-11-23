@@ -78,6 +78,18 @@ type Style struct {
 	SubtitleY float64 `json:"subtitleY,omitempty"`
 	Accent    string  `json:"accent"`
 	ShowSafe  bool    `json:"showSafe"`
+	Align     string  `json:"align,omitempty"`
+}
+
+// Alignment is the subtitle alignment. Staggered puts the current phrase on
+// the left and the next one on the right; it is the default.
+func (s Style) Alignment() string {
+	switch strings.ToLower(strings.TrimSpace(s.Align)) {
+	case "left", "right", "center", "stagger":
+		return strings.ToLower(strings.TrimSpace(s.Align))
+	default:
+		return "stagger"
+	}
 }
 
 // New returns a project with defaults filled in.
@@ -92,6 +104,7 @@ func New(title string) *Project {
 			SubSize:   60,
 			SubtitleY: 78,
 			Accent:    "#F3B544",
+			Align:     "stagger",
 		},
 	}
 }

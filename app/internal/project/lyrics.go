@@ -17,6 +17,181 @@ type ChordSpan struct {
 	Inherited bool
 }
 
+// Phrase is one display segment of a lyric line. The chart's spaces mark
+// where the singer breathes, so they also mark where the subtitle changes
+// instead of revealing a whole sentence at once.
+type Phrase struct {
+	From  int
+	To    int
+	Text  string
+	Start float64
+	End   float64
+}
+
+// Phrases splits the line into display segments. Spaces from the chart win;
+// a line without spaces falls back to chord changes, and a line with neither
+// stays a single phrase.
+func (l Line) Phrases() []Phrase {
+	runes := []rune(l.Text)
+	if len(runes) == 0 {
+		return nil
+	}
+	ranges := spaceRanges(runes)
+	if len(ranges) < 2 {
+		ranges = chordRanges(l, runes)
+	}
+	if len(ranges) == 0 {
+		ranges = [][2]int{{0, len(runes)}}
+	}
+	times := l.RuneTimes()
+	phrases := make([]Phrase, 0, len(ranges))
+	for i, item := range ranges {
+		from, to := item[0], item[1]
+		if from < 0 || to > len(runes) || to <= from {
+			continue
+		}
+		start := times[from]
+		end := l.End
+		if i+1 < len(ranges) {
+			end = times[ranges[i+1][0]]
+		}
+		if end < start {
+			end = start
+		}
+		phrases = append(phrases, Phrase{
+			From:  from,
+			To:    to,
+			Text:  string(runes[from:to]),
+			Start: start,
+			End:   end,
+		})
+	}
+	return phrases
+}
+
+// PhraseAt returns the phrase playing at t.
+func (l Line) PhraseAt(t float64) (int, Phrase, bool) {
+	phrases := l.Phrases()
+	for i, phrase := range phrases {
+		if t >= phrase.Start-1e-9 && t < phrase.End-1e-9 {
+			return i, phrase, true
+		}
+	}
+	if len(phrases) > 0 && t >= phrases[len(phrases)-1].Start && t <= l.End+1e-9 {
+		return len(phrases) - 1, phrases[len(phrases)-1], true
+	}
+	return 0, Phrase{}, false
+}
+
+// NextPhrase returns the phrase that follows the one at index on the
+// timeline, crossing into the following lines.
+func (p *Project) NextPhrase(lineIndex, phraseIndex int) (int, Phrase, bool) {
+	if p == nil || lineIndex < 0 || lineIndex >= len(p.Lines) {
+		return 0, Phrase{}, false
+	}
+	phrases := p.Lines[lineIndex].Phrases()
+	if phraseIndex >= 0 && phraseIndex+1 < len(phrases) {
+		return lineIndex, phrases[phraseIndex+1], true
+	}
+	for i := lineIndex + 1; i < len(p.Lines); i++ {
+		if next := p.Lines[i].Phrases(); len(next) > 0 {
+			return i, next[0], true
+		}
+	}
+	return 0, Phrase{}, false
+}
+
+// PrevPhrase returns the phrase before the one at index on the timeline,
+// crossing into the previous lines.
+func (p *Project) PrevPhrase(lineIndex, phraseIndex int) (int, Phrase, bool) {
+	if p == nil || lineIndex < 0 || lineIndex >= len(p.Lines) {
+		return 0, Phrase{}, false
+	}
+	if phraseIndex > 0 {
+		phrases := p.Lines[lineIndex].Phrases()
+		if phraseIndex <= len(phrases) {
+			return lineIndex, phrases[phraseIndex-1], true
+		}
+	}
+	for i := lineIndex - 1; i >= 0; i-- {
+		if prev := p.Lines[i].Phrases(); len(prev) > 0 {
+			return i, prev[len(prev)-1], true
+		}
+	}
+	return 0, Phrase{}, false
+}
+
+func spaceRanges(runes []rune) [][2]int {
+	var ranges [][2]int
+	start := -1
+	for i, r := range runes {
+		if unicode.IsSpace(r) {
+			if start >= 0 {
+				ranges = append(ranges, [2]int{start, i})
+				start = -1
+			}
+			continue
+		}
+		if start < 0 {
+			start = i
+		}
+	}
+	if start >= 0 {
+		ranges = append(ranges, [2]int{start, len(runes)})
+	}
+	return ranges
+}
+
+// chordRanges splits on chord anchors, merging one-character segments so a
+// phrase never flickers on and off for a single syllable.
+func chordRanges(l Line, runes []rune) [][2]int {
+	marks := CleanChordMarks(l.Chords, l.Text)
+	if len(marks) < 2 {
+		return nil
+	}
+	var ranges [][2]int
+	for i, mark := range marks {
+		from := mark.At
+		to := len(runes)
+		if i+1 < len(marks) {
+			to = marks[i+1].At
+		}
+		if from < 0 || to > len(runes) || to <= from {
+			continue
+		}
+		ranges = append(ranges, [2]int{from, to})
+	}
+	if len(ranges) < 2 {
+		return nil
+	}
+	merged := ranges[:0]
+	for _, item := range ranges {
+		if len(merged) > 0 && singable(runes[merged[len(merged)-1][0]:merged[len(merged)-1][1]]) < 2 {
+			merged[len(merged)-1][1] = item[1]
+			continue
+		}
+		merged = append(merged, item)
+	}
+	if len(merged) > 1 && singable(runes[merged[len(merged)-1][0]:merged[len(merged)-1][1]]) < 2 {
+		merged[len(merged)-2][1] = merged[len(merged)-1][1]
+		merged = merged[:len(merged)-1]
+	}
+	if len(merged) < 2 {
+		return nil
+	}
+	return merged
+}
+
+func singable(runes []rune) int {
+	n := 0
+	for _, r := range runes {
+		if timingWeight(r) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
 // RuneTimes gives every rune its own start time inside the line. Spaces and
 // punctuation get no time of their own and appear with the previous rune.
 func (l Line) RuneTimes() []float64 {

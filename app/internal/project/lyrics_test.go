@@ -23,6 +23,120 @@ func TestLineRevealsCharactersOverTime(t *testing.T) {
 	}
 }
 
+func TestLinePhrasesSplitOnChartSpaces(t *testing.T) {
+	line := Line{
+		Start: 0,
+		End:   10,
+		Text:  "好想能看到 你嘴角微笑",
+		CharTimes: []float64{
+			0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 9,
+		},
+	}
+	phrases := line.Phrases()
+	if len(phrases) != 2 {
+		t.Fatalf("phrases = %+v", phrases)
+	}
+	if phrases[0].Text != "好想能看到" || phrases[0].Start != 0 || phrases[0].End != 5 {
+		t.Errorf("phrase 0 = %+v", phrases[0])
+	}
+	if phrases[1].Text != "你嘴角微笑" || phrases[1].Start != 5 || phrases[1].End != 10 {
+		t.Errorf("phrase 1 = %+v", phrases[1])
+	}
+}
+
+func TestLinePhrasesFallBackToChordChanges(t *testing.T) {
+	line := Line{
+		Start:  0,
+		End:    6,
+		Text:   "最好在下一秒",
+		Chords: []ChordMark{{At: 0, Label: "F"}, {At: 3, Label: "G"}, {At: 5, Label: "C"}},
+	}
+	phrases := line.Phrases()
+	if len(phrases) != 2 {
+		t.Fatalf("phrases = %+v", phrases)
+	}
+	if phrases[0].Text != "最好在" || phrases[0].Start != 0 || phrases[0].End != 3 {
+		t.Errorf("phrase 0 = %+v", phrases[0])
+	}
+	if phrases[1].Text != "下一秒" || phrases[1].Start != 3 || phrases[1].End != 6 {
+		t.Errorf("phrase 1 = %+v", phrases[1])
+	}
+}
+
+func TestLinePhrasesWithoutSpacesOrChordsStayWhole(t *testing.T) {
+	line := Line{Start: 0, End: 4, Text: "好想能看到"}
+	phrases := line.Phrases()
+	if len(phrases) != 1 || phrases[0].Text != "好想能看到" {
+		t.Fatalf("phrases = %+v", phrases)
+	}
+}
+
+func TestLinePhraseAtBoundaries(t *testing.T) {
+	line := Line{
+		Start: 0,
+		End:   10,
+		Text:  "好想能看到 你嘴角微笑",
+		CharTimes: []float64{
+			0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 9,
+		},
+	}
+	for _, item := range []struct {
+		at   float64
+		want string
+	}{
+		{2, "好想能看到"},
+		{4.5, "好想能看到"},
+		{5, "你嘴角微笑"},
+		{10, "你嘴角微笑"},
+	} {
+		_, phrase, ok := line.PhraseAt(item.at)
+		if !ok || phrase.Text != item.want {
+			t.Errorf("PhraseAt(%v) = %+v ok=%v, want %q", item.at, phrase, ok, item.want)
+		}
+	}
+}
+
+func TestNextAndPrevPhraseCrossLines(t *testing.T) {
+	p := New("test")
+	p.Lines = []Line{
+		{Start: 0, End: 4, Text: "好想能看到 你嘴角微笑"},
+		{
+			Start: 4, End: 8, Text: "最好在下一秒",
+			Chords: []ChordMark{{At: 0, Label: "F"}, {At: 3, Label: "G"}, {At: 5, Label: "C"}},
+		},
+	}
+	if line, phrase, ok := p.NextPhrase(0, 1); !ok || line != 1 || phrase.Text != "最好在" {
+		t.Errorf("NextPhrase across lines = line %d phrase %+v ok=%v", line, phrase, ok)
+	}
+	if line, phrase, ok := p.PrevPhrase(1, 0); !ok || line != 0 || phrase.Text != "你嘴角微笑" {
+		t.Errorf("PrevPhrase across lines = line %d phrase %+v ok=%v", line, phrase, ok)
+	}
+	if _, _, ok := p.NextPhrase(1, 1); ok {
+		t.Error("NextPhrase found a phrase after the last one")
+	}
+	if _, _, ok := p.PrevPhrase(0, 0); ok {
+		t.Error("PrevPhrase found a phrase before the first one")
+	}
+}
+
+func TestStyleAlignmentDefaultsToStagger(t *testing.T) {
+	for _, item := range []struct {
+		value string
+		want  string
+	}{
+		{"", "stagger"},
+		{"LEFT", "left"},
+		{" right ", "right"},
+		{"center", "center"},
+		{"odd", "stagger"},
+	} {
+		style := Style{Align: item.value}
+		if got := style.Alignment(); got != item.want {
+			t.Errorf("Style{Align:%q}.Alignment() = %q, want %q", item.value, got, item.want)
+		}
+	}
+}
+
 func TestPunctuationAppearsWithPreviousCharacter(t *testing.T) {
 	line := Line{Start: 0, End: 2, Text: "好，想"}
 	if got := line.TextAt(0.4); got != "好，" {

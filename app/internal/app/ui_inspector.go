@@ -418,6 +418,40 @@ func (a *app) styleTab(c *ui.Context) {
 	sliderRow(c, "字幕字号", &a.proj.Style.SubSize, a.saveCurrent)
 	sliderPercentRow(c, "字幕位置", &a.proj.Style.SubtitleY, 60, 80, a.saveCurrent)
 
+	sectionLabel(c, "字幕对齐", "交错：当前靠左，下一句靠右")
+	ui.Row(c).Gap(6).Children(func() {
+		for _, item := range []struct {
+			name  string
+			value string
+		}{
+			{"居中", "center"},
+			{"靠左", "left"},
+			{"靠右", "right"},
+			{"交错", "stagger"},
+		} {
+			it := item
+			on := a.proj.Style.Alignment() == it.value
+			b := ui.ButtonBase(c).Grow(1).Height(30).Radius(7).Center().
+				Label(it.name).FocusRing(false)
+			if on {
+				b.Background(pal.sel).Border(1, pal.accentLine)
+			} else {
+				b.Background(pal.card).Border(1, pal.line)
+			}
+			if b.Hovered() && !on {
+				b.Background(pal.panel2)
+			}
+			b.OnClick(func() {
+				a.proj.Style.Align = it.value
+				a.saveCurrent()
+				a.toast(c, "字幕对齐已更新", it.name)
+			})
+			b.Children(func() {
+				text(c, it.name, 9.5, pal.text)
+			})
+		}
+	})
+
 	sectionLabel(c, "样式预设", "一键套用")
 	ui.Row(c).Gap(6).Children(func() {
 		for i, preset := range stylePresets {

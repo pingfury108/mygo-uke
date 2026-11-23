@@ -512,7 +512,7 @@ func lineAt(p *project.Project, t float64) (project.Line, int, bool) {
 }
 
 func styleFor(p *project.Project) project.Style {
-	style := project.Style{ChordSize: 64, SubSize: 60, SubtitleY: 78, Accent: "#F3B544"}
+	style := project.Style{ChordSize: 64, SubSize: 60, SubtitleY: 78, Accent: "#F3B544", Align: "stagger"}
 	if p == nil {
 		return style
 	}
@@ -527,6 +527,9 @@ func styleFor(p *project.Project) project.Style {
 	}
 	if p.Style.Accent != "" {
 		style.Accent = p.Style.Accent
+	}
+	if p.Style.Align != "" {
+		style.Align = p.Style.Align
 	}
 	return style
 }
