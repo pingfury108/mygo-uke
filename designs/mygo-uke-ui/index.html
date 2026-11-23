@@ -286,7 +286,7 @@
                 <div class="analysis-stages">
                   <div class="stage-row done">
                     <span class="stage-icon">✓</span>
-                    <span>抽音轨 · 16k PCM / 128k MP3</span>
+                    <span>读取视频 · ffprobe</span>
                     <span class="stage-time">2.1s</span>
                   </div>
                   <div class="stage-row done">
@@ -296,12 +296,12 @@
                   </div>
                   <div class="stage-row active">
                     <span class="stage-icon">·</span>
-                    <span>和弦分析 · BTC + beat_this</span>
+                    <span>曲谱解析 · 视觉模型</span>
                     <span class="stage-time">约 25s</span>
                   </div>
                   <div class="stage-row">
                     <span class="stage-icon">4</span>
-                    <span>小节对齐 · 按 downbeats 切分</span>
+                    <span>曲谱对齐 · 按字锚定和弦</span>
                     <span class="stage-time">等待中</span>
                   </div>
                 </div>
@@ -542,7 +542,7 @@
           </button>
           <div class="rail-sep"></div>
           <div class="rail-foot">
-            <div class="api-state"><i class="dot"></i><span>chordd 在线 · ASR 已配置</span></div>
+            <div class="api-state"><i class="dot"></i><span>曲谱已导入 · ASR 已配置</span></div>
             <div class="api-state"><i class="dot warn"></i><span>3 个和弦待确认</span></div>
             <button class="rail-action">设置与 API Key</button>
           </div>

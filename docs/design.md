@@ -2,24 +2,21 @@
 
 > 配套需求见 `mygo-uke-requirements.md`。
 > 本文只讲「怎么实现」和「为什么这么选」。
->
-> 2026-11-23 更新：客户端已移除音频和弦/节拍分析，和弦与小节改由导入曲谱
-> 提供；下文关于 `chordd` 的内容仅作为早期设计记录保留。
 
 ---
 
 ## 0. 一句话结论
 
-**一个 monorepo，两个子项目：Go 写的 MyGo 桌面客户端（零模型）+ Python 写的和弦分析服务（独立部署）。**
+**一个 Go 写的 MyGo 原生桌面客户端：视频 + 曲谱一次导入，客户端内完成字幕对齐、曲谱解析与成片导出，不做音频和弦识别。**
 
 ```
 mygo-uke/
 ├─ app/        Go 1.27 + MyGo v0.10     客户端，约 80MB 分发
-├─ chordd/     Python 3.11 + BTC        和弦/节拍服务，部署在别处
 └─ docs/
 ```
 
-字幕和曲谱由客户端在**同一套 view 代码**里画到画面上，再用 ffmpeg 编码成片——不经过 ASS，不经过第二套渲染器。
+曲谱是唯一和弦来源。字幕和曲谱由客户端在**同一套 view 代码**里画到画面上，
+再用 ffmpeg 编码成片——不经过 ASS，不经过第二套渲染器。
 
 ---
 
@@ -28,7 +25,6 @@ mygo-uke/
 ```
 mygo-uke/
 ├─ README.md
-├─ Makefile                  顶层：dev / build / chordd-up / verify
 ├─ docs/
 │  ├─ requirements.md
 │  └─ design.md
@@ -39,9 +35,9 @@ mygo-uke/
 │  ├─ internal/
 │  │  ├─ app/                视图 ui_*.go
 │  │  ├─ project/            project.json 模型 + 读写
-│  │  ├─ pipeline/           编排：抽音轨 → ASR ∥ chordd → 对齐
+│  │  ├─ pipeline/           编排：抽 PCM → ASR → 曲谱对齐
 │  │  ├─ asr/                火山流式 ASR 客户端
-│  │  ├─ chord/              chordd HTTP 客户端
+│  │  ├─ sheet/              曲谱解析、ASR 对齐、字符级和弦
 │  │  ├─ score/              bars / 和弦条布局（纯逻辑，可单测）
 │  │  ├─ uke/                尤克里里和弦词典 + 指法图（写死，不做多乐器）
 │  │  ├─ render/             view 定义 + 离屏渲染
@@ -50,18 +46,10 @@ mygo-uke/
 │  │  └─ subtitle/           SRT 导出（抄 mygo-video）
 │  ├─ resources/fonts/       思源黑体子集
 │  └─ designs/
-└─ chordd/                   ── ② 和弦服务（独立 Python 工程）
-   ├─ pyproject.toml         uv 管理
-   ├─ chordd/
-   │  ├─ main.py             FastAPI
-   │  ├─ analyze.py          BTC + beat_this
-   │  ├─ models.py           权重下载/缓存
-   │  └─ cache.py            按音频 md5 缓存
-   ├─ Dockerfile
-   └─ README.md
 ```
 
-**为什么 `app/` 是独立 Go module**：MyGo 工具链从 module 根目录跑 `go tool mygo dev`，独立 module 让两个子项目互不污染依赖。
+**为什么 `app/` 是独立 Go module**：MyGo 工具链从 module 根目录跑
+`go tool mygo dev`，独立 module 让客户端依赖保持干净。
 
 ---
 
@@ -77,11 +65,10 @@ mygo-uke/
 
 **被否决**：React + Vite + 本地 HTTP 服务。多一个运行时、多一套构建、最终还是要打壳。
 
-### ADR-2：两个子项目同仓，但语言和部署分离
+### ADR-2：客户端单进程，曲谱解析走 OpenAI 兼容接口
 
-同仓解决「接口契约必须一起改」的问题；语言分离解决「客户端不能有 Python」的问题。
-
-**契约放在 `docs/design.md` §5 和 `chordd/` 的 OpenAPI 里，两边都要有测试。**
+图片曲谱交给支持视觉的聊天模型识别，文本曲谱本地解析；客户端不引入
+Python、不进模型权重。接口约定固定为 `docs/design.md` §5 的 JSON 结构。
 
 ### ADR-3：ASR 用火山豆包流式，直接复用 `sotto/internal/asr`
 
@@ -104,15 +91,17 @@ sotto/internal/asr/protocol.go
 
 做法：把 `sotto/internal/asr` 抽成公共包（或直接 copy 进 `app/internal/asr`，保持可追溯）。**不重写。**
 
-### ADR-4：和弦做成独立部署的 `chordd`
+### ADR-4：和弦来自曲谱，不做音频识别
 
 | 备选 | 否决理由 |
 |---|---|
-| 买 SaaS（Moises music.ai） | 黑盒、按量计费、**不确定给不给小节边界（downbeats）** |
-| 客户端内嵌 ONNX | 模型 150–350MB，且 BTC 导出 ONNX 有坑 |
-| 纯 Go 自研 DSP | 准确率 ~60%，不够 |
+| 音频和弦识别 | 弹唱混音下准确率不稳定，逐字位置更难对齐 |
+| 人工逐字标和弦 | 一首歌几十个和弦，操作成本过高 |
+| 解析已有曲谱 | 和弦、调性、BPM、拍号本来就是谱面信息，最可靠 |
 
-**选 Python + BTC + beat_this，独立部署。** Python 只活在服务器上，不进分发物——这是整件事的关键分界。
+**选曲谱作为唯一和弦来源。** 图片曲谱用视觉模型转成结构化 JSON，
+文本曲谱本地解析；和弦锚定到歌词字符，持续到下一个和弦。曲谱没有
+BPM 时，小节按和弦变化点近似生成。
 
 ### ADR-5：导出用 Tester 离屏渲染，不用 ASS
 
@@ -175,7 +164,7 @@ func (t *Tester) Image() *image.RGBA
 | 分发影响 | 无 | 吉他/钢琴表白白占体积 |
 | 需求确定性 | **只弹尤克里里，这是事实** | 为不存在的需求付设计成本 |
 
-**关键认知：`chordd` 返回的和弦名是乐器无关的**（`C`、`Am`、`G7`）。「只支持尤克里里」这个约束**只落在客户端渲染层**，不影响服务端，也不需要服务端感知乐器。
+**关键认知：曲谱里的和弦名是乐器无关的**（`C`、`Am`、`G7`）。「只支持尤克里里」这个约束**只落在客户端渲染层**。
 
 所以 `uke` 包只做三件事：
 
@@ -191,7 +180,7 @@ func Available(c Chord) bool                 // 尤克里里弹不弹得了
 
 ```
 ┌──────────────────────────────────────────────┐
-│ app（MyGo 桌面客户端 · 零模型 · ~80MB）        │
+│ app（MyGo 桌面客户端 · 零本地模型 · ~80MB）    │
 │                                              │
 │  ┌─────────┐  ┌──────────┐  ┌────────────┐  │
 │  │ 校对台   │  │ pipeline │  │ compose    │  │
@@ -200,16 +189,16 @@ func Available(c Chord) bool                 // 尤克里里弹不弹得了
 │      ↑             │                          │
 │  project.json ←────┘                          │
 └──────────┬────────────────────┬──────────────┘
-           │ mp3 128k mono      │ mp3 128k mono
+           │ 16k mono PCM       │ 图片曲谱
            ▼                    ▼
    ┌───────────────┐   ┌──────────────────────┐
-   │ 火山豆包 ASR   │   │ chordd（Python）      │
-   │ 流式 v3 / WSS  │   │ BTC + beat_this       │
-   │ 句级 utterances│   │ chords/beats/downbeats│
+   │ 火山豆包 ASR   │   │ OpenAI 兼容视觉模型   │
+   │ 流式 v3 / WSS  │   │ 只输出结构化曲谱 JSON  │
+   │ 句级 utterances│   │ 文本曲谱则本地解析     │
    └───────────────┘   └──────────────────────┘
 ```
 
-**两路并发**：ASR 和 chordd 同时发，别串行。
+ASR 与曲谱解析互不依赖；曲谱行最终用 ASR 的句级时间对齐到视频时间轴。
 
 ---
 
@@ -269,16 +258,17 @@ func Available(c Chord) bool                 // 尤克里里弹不弹得了
 ### 4.3 管线时序
 
 ```
-1. 导入      ffmpeg -i in.mp4 -vn -ac 1 -ar 16000 -b:a 128k out.mp3
-2. 并发
-   ├─ ASR   ：PCM 16k 帧 → 火山流式 → utterances[]
-   └─ chordd：POST /v1/analyze → 轮询 → chords/beats/downbeats/key
-3. 对齐      两条时间轴都基于同一份 audio → 天然同源
-4. 合成      bars（规则）+ lines（ASR 句级）+ tempo/key
-5. 落盘      project.json
+1. 新建工程  选择视频 + 曲谱（图片/文本）
+2. 读时长    ffprobe
+3. 抽音轨    ffmpeg -i in.mp4 -vn -ac 1 -ar 16000 -f s16le out.pcm
+4. ASR       PCM 16k 帧 → 火山流式 → utterances[]
+5. 解析曲谱  图片走视觉模型，文本本地解析 → key/capo/BPM/拍号/逐行和弦
+6. 对齐      曲谱行匹配 ASR 句，和弦锚定到具体字符
+7. 生成      chords + bars + lines；有 BPM 用等间隔拍点，否则按和弦变化点
+8. 落盘      project.json
 ```
 
-**注意**：ASR 要 16k 单声道 PCM，chordd 要 44.1k（或 22.05k）音频——**抽两轨**，别互相将就。
+没有 ASR Key 时跳过第 4 步，曲谱行按总时长平均分布；没有曲谱时只生成字幕。
 
 ### 4.4 渲染与合成
 
@@ -386,63 +376,39 @@ var shapes = map[string][]Shape{
 
 内部统一存**「实际调」**，渲染时再减 capo 反推形状 —— 这样移调操作不用动 capo 逻辑。
 
-**待验证点**：`chordd` 返回的和弦如果落在表外（比如 `Bb`、`Fm`、`Ab`），要确认这些在尤克里里上有合理按法。**标准调弦下 `Bb`、`Eb`、`Ab` 都是 barre 和弦，对新手不友好但存在。** 计划里要给「变调夹建议」：检测到大量 barre 时，提示「夹 1 品弹 A 调更顺」。
+**待验证点**：曲谱里的和弦如果落在表外（比如 `Bb`、`Fm`、`Ab`），要确认这些在尤克里里上有合理按法。**标准调弦下 `Bb`、`Eb`、`Ab` 都是 barre 和弦，对新手不友好但存在。** 计划里要给「变调夹建议」：检测到大量 barre 时，提示「夹 1 品弹 A 调更顺」。
 
 ---
 
-## 5. `chordd` 接口契约
+## 5. 曲谱 JSON 契约
 
-### 5.1 端点
+视觉模型与本地文本解析都输出同一结构；客户端只认这个契约。
 
-```http
-POST /v1/analyze
-Content-Type: multipart/form-data
-  audio=<file>        # mp3/wav，≤ 10MB
-  downmix=true        # 可选
-→ 202 { "jobId": "abc123", "etaMs": 45000 }
-
-GET /v1/jobs/{jobId}
-→ 200 {
-  "status": "pending|running|done|failed",
-  "progress": 0.62,
-  "error": null
-}
-
-GET /v1/jobs/{jobId}/result
-→ 200 {
-  "tempo": 68.0,
-  "timeSignature": [4, 4],
+```json
+{
   "key": "C",
-  "beats":     [0.52, 1.41, 2.29],
-  "downbeats": [0.52, 3.30, 6.05],        // ★ 命根子，没有它整个交互不成立
-  "chords": [
-    { "start": 0.52, "end": 3.30, "label": "C", "conf": 0.93 }
-  ],
-  "sections": [ { "start": 0, "end": 48, "label": "verse" } ]
+  "capo": 0,
+  "bpm": 90,
+  "timeSignature": [4, 4],
+  "lines": [
+    {
+      "lyrics": "好想能看到 你嘴角微笑",
+      "chords": [
+        { "at": 0, "label": "F" },
+        { "at": 3, "label": "G" }
+      ]
+    }
+  ]
 }
-
-GET /healthz
-→ 200 { "ok": true, "models": ["btc-large-voca", "beat-this"] }
 ```
 
-### 5.2 实现
+规则：
 
-| 环节 | 选型 |
-|---|---|
-| Web | FastAPI + uvicorn |
-| 节拍/小节 | **beat_this**（SOTA，pip 装，一次出 tempo + beat + downbeat） |
-| 和弦 | **BTC large-voca** 现成 checkpoint |
-| 调性 | 和弦序列 + Krumhansl 模板（自己写 30 行） |
-| 段落 | 和弦自相似矩阵（不引 all-in-one，太重） |
-| 缓存 | 按音频 sha256 落盘，重跑秒回 |
-| 部署 | Dockerfile + runpulse |
-
-**必须遵守：**
-
-1. **`downbeats` 一定要返回**，哪怕是降级估算
-2. 时间单位统一**秒（float）**，别混毫秒
-3. 长音频按 30 秒窗口推理后拼接，**时间偏移要加回去**
-4. CPU 也要能跑（无 GPU 时 3 分钟歌 40–90 秒）
+1. `at` 是歌词的 0 基字符下标，中文按一个字一个下标；和弦覆盖多个字时只标起始字。
+2. 和弦从 `at` 开始，持续到下一个和弦、句尾或曲尾。
+3. `bpm` 缺失时为 0；`timeSignature` 缺失时按 4/4。
+4. 没有歌词的纯和弦段落也要输出，`lyrics` 为空字符串。
+5. 无法判断位置时省略 `at`，客户端按行内均分并标记为近似。
 
 ---
 
@@ -452,7 +418,7 @@ GET /healthz
 
 | # | 验什么 | 方法 | 不过怎么办 |
 |---|---|---|---|
-| **V1** | `chordd` 的 `downbeats` 跟实际小节对不对 | 拿自己 3 首歌，把 downbeats 画成竖线叠在波形上，人眼对 | 差半拍 → 整个「和弦跟小节」交互重设计；或改用「和弦变化点 + 固定 4 拍」推 |
+| **V1** | 曲谱 bpm/拍号能否生成可用小节 | 拿 3 首带 BPM 的曲谱，把拍点叠在波形上人眼对 | 无 BPM 的谱按和弦变化点生成小节，并标为近似 |
 | **V2** | 火山流式 ASR 喂歌声的效果 | 灌 30 秒副歌 PCM，看定稿文本 + `utterances` 时间 | 掉字严重 → 换 `auc` 录音文件识别（另一套协议）；或先 Demucs 分离再喂 |
 | **V3** | `ui.NewTester` 渲染 1080×1920 单帧耗时 | 一个 `cmd/bench` 程序，1 张位图 + 2 行中文，跑 100 帧取均值 | > 80ms → 降至 720p 渲染；或改分段渲染 + ffmpeg overlay（需反解 alpha） |
 
@@ -460,10 +426,10 @@ GET /healthz
 
 | 风险 | 级别 | 缓解 |
 |---|---|---|
-| V1 小节边界不准 | 🔴 高 | 决定整个产品形态，最先验 |
+| V1 小节边界不准 | 🟡 中 | 有 BPM 用等间隔拍点；没有时按和弦变化点近似，可在 UI 手动改 |
 | V3 渲染太慢 | 🟡 中 | 降分辨率 / 缓存叠加层位图 |
 | V2 歌声识别差 | 🟡 中 | 换 auc / 先分离 / 人工改字是兜底（反正要校对） |
-| chordd 服务挂了 | 🟡 中 | 明确报错 + 重试；不做离线降级 |
+| 曲谱图片识别失败 | 🟡 中 | 允许粘贴文本曲谱，或导入后逐字/逐小节手动改和弦 |
 | 火山限流/超时 | 🟢 低 | 单用户，退避重试即可 |
 
 ---

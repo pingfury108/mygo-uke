@@ -4,10 +4,4 @@ app/.mygo/
 app/resources/*/ffmpeg
 app/resources/*/ffprobe
 app/resources/*/fonts/
-chordd/.venv/
-chordd/**/__pycache__/
-chordd/.pytest_cache/
-chordd/.ruff_cache/
-chordd/models/
-chordd/analysis/
 *.pyc
