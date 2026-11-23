@@ -80,7 +80,6 @@ func TestSetLineUpsertsAndSorts(t *testing.T) {
 func TestMergeKeepsEdits(t *testing.T) {
 	edited := New("我的歌")
 	edited.Capo = 3
-	edited.Pattern = "waltz-3"
 	edited.Style.Accent = "#B5482E"
 	edited.LinesEdited = true
 	edited.Lines = []Line{{Start: 0, End: 3, Text: "改过的字幕"}}
@@ -101,7 +100,7 @@ func TestMergeKeepsEdits(t *testing.T) {
 	}
 
 	merged := Merge(edited, built)
-	if merged.Title != "我的歌" || merged.Capo != 3 || merged.Pattern != "waltz-3" {
+	if merged.Title != "我的歌" || merged.Capo != 3 {
 		t.Fatalf("merged = %+v", merged)
 	}
 	if merged.Style.Accent != "#B5482E" {

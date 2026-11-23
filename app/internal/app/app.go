@@ -49,7 +49,6 @@ type app struct {
 	playerErr   error
 
 	selectedLine int
-	pattern      int
 
 	inspectorScroll [3]ui.ScrollState
 	revealLine      int

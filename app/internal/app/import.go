@@ -206,7 +206,6 @@ func (a *app) resetCursor() {
 	a.chordCursor = -1
 	a.resetInspectorScroll()
 	a.resetChartThumb()
-	a.pattern = patternIndex(a.proj.Pattern)
 	if len(a.proj.Chords) > 0 {
 		a.chordChoice = a.proj.Chords[0].Label
 	}

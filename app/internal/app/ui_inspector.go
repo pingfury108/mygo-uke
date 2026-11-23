@@ -38,12 +38,6 @@ func (a *app) inspector(c *ui.Context) {
 				}
 			})
 		})
-		switch a.tab {
-		case 0:
-			a.subtitleFooter(c)
-		case 1:
-			a.chordFooter(c)
-		}
 	})
 }
 
@@ -313,47 +307,6 @@ func splitSpace(s string) (head int, core string, tail int) {
 	return head, string(runes[head:tail]), len(runes) - tail
 }
 
-func (a *app) subtitleFooter(c *ui.Context) {
-	ui.Box(c).Height(1).FillWidth().Background(pal.line)
-	ui.Column(c).Padding(7, 14, 7, 14).Gap(5).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			label(c, "节奏型", 10, pal.muted, 600)
-			ui.Box(c).Grow(1)
-			mono(c, a.strumText(), 10, pal.faint)
-		})
-		grid := ui.Grid(c).FillWidth().Columns(2).Gap(6)
-		grid.Children(func() {
-			for i, name := range []string{"民谣基础", "下上", "三指法", "3/4 华尔兹"} {
-				index := i
-				on := a.pattern == index
-				b := ui.ButtonBase(c).Height(30).Radius(7).Center().Label(name).FocusRing(false)
-				if on {
-					b.Background(pal.warnBG).Border(1, pal.accentLine)
-				} else {
-					b.Background(pal.card).Border(1, pal.line)
-				}
-				if b.Hovered() && !on {
-					b.Background(pal.panel2)
-				}
-				b.OnClick(func() {
-					a.pattern = index
-					a.proj.Pattern = patternID(index)
-					a.saveCurrent()
-				})
-				b.Children(func() {
-					color := pal.muted
-					weight := 500
-					if on {
-						color = pal.text
-						weight = 600
-					}
-					label(c, name, 10, color, weight)
-				})
-			}
-		})
-	})
-}
-
 func (a *app) chordHeader(c *ui.Context) {
 	bar, index, ok := a.barAt(a.playhead)
 	current := a.currentChordLabel(bar)
@@ -457,41 +410,6 @@ func (a *app) chordBars(c *ui.Context) {
 			a.revealBar = -1
 		}
 	}
-}
-
-func (a *app) chordFooter(c *ui.Context) {
-	bar, index, ok := a.barAt(a.playhead)
-	current := a.currentChordLabel(bar)
-	if current == "" {
-		current = "—"
-	}
-	ui.Box(c).Height(1).FillWidth().Background(pal.line)
-	ui.Column(c).Padding(7, 14, 7, 14).Gap(5).Children(func() {
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			label(c, "当前小节", 10, pal.muted, 600)
-			ui.Box(c).Grow(1)
-			if ok {
-				mono(c, fmt.Sprintf("第 %d 小节 · %s", index+1, current), 9, pal.faint)
-			}
-		})
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-			primaryButton(c, "编辑当前小节", func() { a.editCurrentBar() })
-			if ok {
-				ghostButton(c, "定位", func() { a.revealBar = index })
-			}
-		})
-		text(c, "点小节跳转 · 双击编辑", 9, pal.faint)
-	})
-}
-
-func (a *app) editCurrentBar() {
-	_, index, ok := a.barAt(a.playhead)
-	if !ok {
-		return
-	}
-	a.chordBar = index
-	a.chordChoice = firstChord(a.proj.Bars[index])
-	a.modal = modalChords
 }
 
 func (a *app) styleTab(c *ui.Context) {
@@ -662,48 +580,4 @@ func shapeForKey(key string, capo int) string {
 		return key
 	}
 	return shape.Name
-}
-
-func (a *app) patternName() string {
-	switch a.pattern {
-	case 1:
-		return "下上"
-	case 2:
-		return "三指法"
-	case 3:
-		return "3/4 华尔兹"
-	default:
-		return "民谣基础"
-	}
-}
-
-var patternIDs = []string{"folk-basic", "down-up", "fingerpick-3", "waltz-3"}
-
-func patternIndex(id string) int {
-	for i, value := range patternIDs {
-		if value == id {
-			return i
-		}
-	}
-	return 0
-}
-
-func patternID(index int) string {
-	if index < 0 || index >= len(patternIDs) {
-		return patternIDs[0]
-	}
-	return patternIDs[index]
-}
-
-func (a *app) strumText() string {
-	switch a.pattern {
-	case 1:
-		return "↓  ↑  ↓  ↑"
-	case 2:
-		return "p  i  m  a"
-	case 3:
-		return "↓   ↓↑   ↓↑"
-	default:
-		return "↓   ↓↑   ↑↓↑"
-	}
 }

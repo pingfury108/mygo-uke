@@ -224,33 +224,6 @@ func TestInspectorRevealsSelectedLine(t *testing.T) {
 	}
 }
 
-func TestInspectorFooterStaysFixed(t *testing.T) {
-	a := newApp()
-	for i := 0; i < 30; i++ {
-		start := 80 + float64(i)*3
-		a.proj.Lines = append(a.proj.Lines, project.Line{
-			Start: start,
-			End:   start + 2.8,
-			Text:  "长视频字幕",
-		})
-	}
-	tt := ui.NewTester(a.view, 1440, 900)
-	tt.Frame()
-	before, ok := tt.Find("民谣基础")
-	if !ok {
-		t.Fatal("subtitle footer missing")
-	}
-	a.inspectorScroll[0].Y = 600
-	tt.Frame()
-	after, ok := tt.Find("民谣基础")
-	if !ok {
-		t.Fatal("subtitle footer scrolled away")
-	}
-	if before.Y != after.Y {
-		t.Fatalf("subtitle footer moved from %.1f to %.1f", before.Y, after.Y)
-	}
-}
-
 func TestSubtitleClickSeeks(t *testing.T) {
 	a := newApp()
 	a.playing = true
@@ -415,29 +388,16 @@ func TestChordPaletteTooltipExplainsChord(t *testing.T) {
 	}
 }
 
-func TestChordClickSeeksAndFooterStaysFixed(t *testing.T) {
+func TestChordRowSeeksWithoutFooter(t *testing.T) {
 	a := newApp()
 	a.tab = 1
-	a.inspectorScroll[1].Y = 600
 	tt := ui.NewTester(a.view, 1440, 900)
 	tt.Frame()
-	before, ok := tt.Find("编辑当前小节")
-	if !ok {
-		t.Fatal("chord footer missing")
-	}
-	a.inspectorScroll[1].Y = 900
-	tt.Frame()
-	after, ok := tt.Find("编辑当前小节")
-	if !ok {
-		t.Fatal("chord footer scrolled away")
-	}
-	if before.Y != after.Y {
-		t.Fatalf("chord footer moved from %.1f to %.1f", before.Y, after.Y)
+	if _, ok := tt.Find("编辑当前小节"); ok {
+		t.Fatal("chord footer should be removed")
 	}
 
-	a.inspectorScroll[1].Y = 0
 	bar := a.proj.Bars[2]
-	tt.Frame()
 	if err := tt.Click(timeText(bar.Start)); err != nil {
 		t.Fatal(err)
 	}
@@ -450,13 +410,6 @@ func TestChordClickSeeksAndFooterStaysFixed(t *testing.T) {
 	}
 	if a.modal != modalNone {
 		t.Fatal("single click opened the chord editor")
-	}
-	if err := tt.Click("编辑当前小节"); err != nil {
-		t.Fatal(err)
-	}
-	tt.Frame()
-	if a.modal != modalChords || a.chordBar != 2 {
-		t.Fatalf("modal = %v, chordBar = %d", a.modal, a.chordBar)
 	}
 }
 
@@ -706,13 +659,28 @@ func TestSaveUsesProjectPath(t *testing.T) {
 	}
 }
 
-func TestPatternAndConfidence(t *testing.T) {
-	if patternIndex("waltz-3") != 3 || patternID(2) != "fingerpick-3" {
-		t.Fatalf("pattern mapping = %q / %q", patternID(2), patternID(patternIndex("waltz-3")))
-	}
+func TestAverageConfidence(t *testing.T) {
 	a := newApp()
 	if a.avgConfidence() <= 0 {
 		t.Fatal("demo project should expose a real average confidence")
+	}
+}
+
+func TestMetaLineHidesUnknownTempoAndDefaultMeter(t *testing.T) {
+	p := project.New("测试")
+	p.Duration = 81
+	p.Key = "C"
+	if got := metaLine(p); got != "01:21 · C 调 · Capo 0" {
+		t.Fatalf("meta = %q", got)
+	}
+	p.Tempo = 96
+	if got := metaLine(p); got != "01:21 · 96 BPM · 4/4 · C 调 · Capo 0" {
+		t.Fatalf("meta with BPM = %q", got)
+	}
+	p.Tempo = 0
+	p.TimeSignature = [2]int{3, 4}
+	if got := metaLine(p); got != "01:21 · 3/4 · C 调 · Capo 0" {
+		t.Fatalf("meta with 3/4 = %q", got)
 	}
 }
 

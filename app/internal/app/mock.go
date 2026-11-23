@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"strings"
 
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/score"
@@ -76,6 +77,18 @@ func demoProject() *project.Project {
 func timeText(seconds float64) string { return score.TimeText(seconds) }
 
 func metaLine(p *project.Project) string {
-	return fmt.Sprintf("%s · %.0f BPM · %d/%d · %s 调 · Capo %d",
-		timeText(p.Duration), p.Tempo, p.TimeSignature[0], p.TimeSignature[1], p.Key, p.Capo)
+	parts := []string{timeText(p.Duration)}
+	if p.Tempo > 0 {
+		parts = append(parts, fmt.Sprintf("%.0f BPM", p.Tempo))
+	}
+	signature := p.TimeSignature
+	if signature[0] > 0 && signature[1] > 0 &&
+		(p.Tempo > 0 || signature != [2]int{4, 4}) {
+		parts = append(parts, fmt.Sprintf("%d/%d", signature[0], signature[1]))
+	}
+	if p.Key != "" {
+		parts = append(parts, p.Key+" 调")
+	}
+	parts = append(parts, fmt.Sprintf("Capo %d", p.Capo))
+	return strings.Join(parts, " · ")
 }

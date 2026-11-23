@@ -27,7 +27,7 @@ func (a *app) projectModal(c *ui.Context) {
 	if a.projectIndex >= 0 && a.projectIndex < len(a.projects) {
 		item = a.projects[a.projectIndex]
 	}
-	detail := "重命名只改工程标题，重新转写会保留字幕与手动和弦"
+	detail := "重命名只改工程标题，不改字幕、和弦和时间轴"
 	if a.projectErr != "" {
 		detail = a.projectErr
 	}
@@ -70,9 +70,6 @@ func (a *app) projectModal(c *ui.Context) {
 				if item.path != "" {
 					ghostButton(c, "删除", func() { a.deleteProject(c) })
 				}
-				if item.data != nil {
-					ghostButton(c, "重新转写", func() { a.reanalyzeProject(c) })
-				}
 				ghostButton(c, "取消", func() { a.modal = modalNone })
 				primaryButton(c, "保存名称", func() { a.saveProjectTitle(c) })
 			})
@@ -107,24 +104,6 @@ func (a *app) saveProjectTitle(c *ui.Context) {
 	a.projectErr = ""
 	a.modal = modalNone
 	a.toast(c, "工程已重命名", title)
-}
-
-func (a *app) reanalyzeProject(c *ui.Context) {
-	if a.jobRunning {
-		a.projectErr = "已有转写任务在运行"
-		return
-	}
-	if a.projectIndex < 0 || a.projectIndex >= len(a.projects) {
-		a.modal = modalNone
-		return
-	}
-	item := a.projects[a.projectIndex]
-	if item.data == nil || item.data.Source == "" {
-		a.projectErr = "这个工程没有源视频"
-		return
-	}
-	a.modal = modalNone
-	a.startReanalyze(c)
 }
 
 func (a *app) deleteProject(c *ui.Context) {

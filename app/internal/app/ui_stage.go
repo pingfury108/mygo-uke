@@ -83,9 +83,6 @@ func (a *app) stageHead(c *ui.Context) {
 				}
 				ghostButton(c, muteLabel, func() { a.setMuted(!a.muted) })
 			}
-			ghostButton(c, "预览", func() {
-				a.toast(c, "预览", "预览与成片共用同一套叠加层")
-			})
 		})
 	})
 }
@@ -239,8 +236,6 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 					text(c, value, 10.5, pal.text).SingleLine()
 				})
 			}
-			ui.Box(c).Grow(1)
-			mono(c, a.patternName(), 8.5, pal.faint)
 		})
 	})
 }
@@ -493,7 +488,6 @@ func (a *app) transport(c *ui.Context) {
 		ui.Column(c).Width(92).Gap(2).AlignItems(ui.End).Children(func() {
 			mono(c, bpmText(a.proj), 9.5, pal.muted)
 			mono(c, fmt.Sprintf("%s 调 · Capo %d", a.proj.Key, a.proj.Capo), 9.5, pal.faint)
-			text(c, "民谣基础", 9.5, pal.faint)
 			mono(c, "Space · J/L", 8, pal.faint)
 		})
 	})

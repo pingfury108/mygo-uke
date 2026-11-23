@@ -205,7 +205,7 @@ func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk
 		label(c, name, h*0.072, ui.Hex(ink), 650)
 		mono(c, fmt.Sprintf("原调 %s · Capo %d", keyOf(p), capoOf(p)), h*0.019,
 			ui.RGBA(255, 248, 234, 0.62))
-		mono(c, fmt.Sprintf("第 %d 小节 · %s", index+1, patternOf(p)), h*0.018,
+		mono(c, fmt.Sprintf("第 %d 小节", index+1), h*0.018,
 			ui.RGBA(255, 248, 234, 0.44))
 		ui.Box(c).Height(h * 0.024)
 		fingeringBox(c, chordLabelAt(p, spec.Time, bar), p, h*0.2, h*0.23, accent, accentInk)
@@ -589,11 +589,4 @@ func timeSig(p *project.Project) [2]int {
 		return [2]int{4, 4}
 	}
 	return p.TimeSignature
-}
-
-func patternOf(p *project.Project) string {
-	if p == nil || p.Pattern == "" {
-		return "—"
-	}
-	return p.Pattern
 }

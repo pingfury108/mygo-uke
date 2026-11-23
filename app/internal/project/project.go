@@ -48,7 +48,6 @@ type Project struct {
 	ChartText     string               `json:"chartText,omitempty"`
 	ChartAt       string               `json:"chartAt,omitempty"`
 	Warnings      []string             `json:"warnings,omitempty"`
-	Pattern       string               `json:"pattern"`
 	Style         Style                `json:"style"`
 }
 
@@ -88,7 +87,6 @@ func New(title string) *Project {
 		Title:         title,
 		TimeSignature: [2]int{4, 4},
 		Tuning:        "GCEA",
-		Pattern:       "folk-basic",
 		Style: Style{
 			ChordSize: 64,
 			SubSize:   60,
@@ -182,9 +180,6 @@ func Load(path string) (*Project, error) {
 	if p.Tuning == "" {
 		p.Tuning = "GCEA"
 	}
-	if p.Pattern == "" {
-		p.Pattern = "folk-basic"
-	}
 	if p.Style.ChordSize <= 0 {
 		p.Style.ChordSize = 64
 	}
@@ -209,7 +204,6 @@ func Merge(edited, built *Project) *Project {
 	}
 	built.Title = edited.Title
 	built.Capo = edited.Capo
-	built.Pattern = edited.Pattern
 	built.Style = edited.Style
 	built.ChartImage = edited.ChartImage
 	built.ChartName = edited.ChartName
