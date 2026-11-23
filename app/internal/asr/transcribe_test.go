@@ -60,3 +60,43 @@ func TestSplitLongLines(t *testing.T) {
 		t.Fatalf("last end = %v", long[len(long)-1].End)
 	}
 }
+
+func TestLinesFromUsesWordSpansAndCharTimes(t *testing.T) {
+	got := linesFrom([]Utterance{{
+		Text: "你好", StartMS: 1000, EndMS: 2200,
+		Words: []Word{
+			{Text: "你", StartMS: 1200, EndMS: 1500},
+			{Text: "好", StartMS: 1500, EndMS: 1800},
+		},
+	}}, 10)
+	if len(got) != 1 {
+		t.Fatalf("lines = %#v", got)
+	}
+	if got[0].Start != 1.2 || got[0].End != 1.8 {
+		t.Fatalf("span = %.2f-%.2f, want 1.2-1.8", got[0].Start, got[0].End)
+	}
+	if len(got[0].CharTimes) != 2 || got[0].CharTimes[0] != 1.2 || got[0].CharTimes[1] != 1.5 {
+		t.Fatalf("char times = %v", got[0].CharTimes)
+	}
+}
+
+func TestSplitLongLinesKeepsCharacterTimes(t *testing.T) {
+	got := splitLongLines([]Line{{
+		Start: 0,
+		End:   4,
+		Text:  "第一句。第二句！",
+		CharTimes: []float64{
+			0, 0.5, 1, 1.2,
+			2, 2.5, 3, 3.2,
+		},
+	}})
+	if len(got) != 2 {
+		t.Fatalf("lines = %#v", got)
+	}
+	if got[0].Start != 0 || got[0].End != 2 || got[1].Start != 2 || got[1].End != 4 {
+		t.Fatalf("spans = %#v", got)
+	}
+	if len(got[0].CharTimes) != 4 || len(got[1].CharTimes) != 4 || got[1].CharTimes[0] != 2 {
+		t.Fatalf("char times = %#v", got)
+	}
+}

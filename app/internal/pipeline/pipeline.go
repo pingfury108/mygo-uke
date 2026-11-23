@@ -51,9 +51,10 @@ func (t ASRTranscriber) Transcribe(
 	out := make([]project.Line, 0, len(lines))
 	for _, line := range lines {
 		out = append(out, project.Line{
-			Start: line.Start,
-			End:   line.End,
-			Text:  line.Text,
+			Start:     line.Start,
+			End:       line.End,
+			Text:      line.Text,
+			CharTimes: append([]float64(nil), line.CharTimes...),
 		})
 	}
 	return out, nil

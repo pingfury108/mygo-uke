@@ -20,8 +20,10 @@ type LyricOverlay struct {
 	Ink       ui.Color
 }
 
-// DrawLyricOverlay draws a karaoke-style line: the text appears one rune at
-// a time, while chords sit over the runes they cover.
+// DrawLyricOverlay draws the rune being sung right now. The previous rune
+// disappears when the next one starts, so the subtitle stays a single
+// character instead of accumulating a whole sentence. Chords are intentionally
+// not drawn here; the stage header already shows the current chord.
 func DrawLyricOverlay(p *ui.Painter, frame ui.Rect, spec LyricOverlay) {
 	if p == nil || spec.Project == nil || frame.W <= 0 || frame.H <= 0 {
 		return
@@ -36,35 +38,65 @@ func DrawLyricOverlay(p *ui.Painter, frame ui.Rect, spec LyricOverlay) {
 	if spec.Time < line.Start || spec.Time > line.End {
 		return
 	}
-	visible := line.VisibleRunes(spec.Time)
 	current := line.CurrentRune(spec.Time)
-	if visible <= 0 || current < 0 {
+	runes := []rune(line.Text)
+	if current < 0 || current >= len(runes) {
 		return
 	}
+	times := line.RuneTimes()
+	next := line.End
+	for i := current + 1; i < len(runes); i++ {
+		if unicode.IsSpace(runes[i]) || unicode.IsPunct(runes[i]) {
+			continue
+		}
+		if times[i] > times[current] {
+			next = times[i]
+			break
+		}
+	}
+	if next <= spec.Time {
+		next = spec.Time + 0.25
+	}
+	duration := next - times[current]
+	if duration <= 0 {
+		duration = 0.25
+	}
+	fadeIn := min(0.08, duration*0.35)
+	fadeOut := min(0.08, duration*0.35)
+	age := spec.Time - times[current]
+	remaining := next - spec.Time
+	alpha := float32(1)
+	if fadeIn > 0 {
+		alpha = min(alpha, float32(age/fadeIn))
+	}
+	if fadeOut > 0 {
+		alpha = min(alpha, float32(remaining/fadeOut))
+	}
+	alpha = max(alpha, 0)
+	if alpha <= 0.02 {
+		return
+	}
+	scale := float32(1)
+	if fadeIn > 0 && age < fadeIn {
+		scale = 0.86 + 0.14*float32(age/fadeIn)
+	}
 
-	runes := []rune(line.Text)
 	size := float32(spec.Style.SubSize) * frame.H / 1920
 	if size < frame.H*0.018 {
 		size = frame.H * 0.018
 	}
-	maxWidth := frame.W * 0.78
-	widths, total := measureRunes(p, runes, size)
-	if total > maxWidth && total > 0 {
-		size *= maxWidth / total
-		if size < frame.H*0.016 {
-			size = frame.H * 0.016
-		}
-		widths, total = measureRunes(p, runes, size)
+	size *= scale
+	glyph := string(runes[current])
+	width, height := p.MeasureText(0, lyricSpan(glyph, size, ui.Transparent, 650))
+	if width <= 0 {
+		return
 	}
-
-	offsets := make([]float32, len(runes)+1)
-	for i, width := range widths {
-		offsets[i+1] = offsets[i] + width
+	if height <= 0 {
+		height = size
 	}
-	total = offsets[len(runes)]
-	x0 := frame.X + (frame.W-total)/2
-	if x0 < frame.X+frame.W*0.05 {
-		x0 = frame.X + frame.W*0.05
+	if width > frame.W*0.6 {
+		size *= frame.W * 0.6 / width
+		width, height = p.MeasureText(0, lyricSpan(glyph, size, ui.Transparent, 650))
 	}
 
 	top := float32(spec.Style.SubtitleY) / 100
@@ -72,102 +104,18 @@ func DrawLyricOverlay(p *ui.Painter, frame ui.Rect, spec LyricOverlay) {
 		top = 0.78
 	}
 	top = min(max(top, 0.5), 0.84)
-	textTop := frame.Y + frame.H*top
-	chordSize := size * 0.50
-	if chordSize < frame.H*0.011 {
-		chordSize = frame.H * 0.011
-	}
-	pad := size * 0.34
-	gap := size * 0.18
-	chordHeight := chordSize * 1.25
-	_, textHeight := p.MeasureText(0, lyricSpan("国", size, spec.Ink, 600))
-	if textHeight <= 0 {
-		textHeight = size
-	}
-
-	spans := spec.Project.LineChordSpans(spec.LineIndex)
-	cardTop := textTop - pad
-	cardHeight := textHeight + pad*2
-	if len(spans) > 0 {
-		cardTop = textTop - gap - chordHeight - pad
-		cardHeight = chordHeight + gap + textHeight + pad*2
-	}
+	x := frame.X + (frame.W-width)/2
+	y := frame.Y + frame.H*top
+	padX := size * 0.34
+	padY := height * 0.16
 	card := ui.Rect{
-		X: x0 - pad,
-		Y: cardTop,
-		W: total + pad*2,
-		H: cardHeight,
+		X: x - padX,
+		Y: y - padY,
+		W: width + padX*2,
+		H: height + padY*2,
 	}
-	p.Fill(card, ui.RGBA(10, 9, 8, 0.68), size*0.22)
-
-	if len(spans) > 0 {
-		chordY := cardTop + pad
-		activeSpan, hasActive := project.ChordAtRune(spans, current)
-		for _, span := range spans {
-			from, to := span.From, span.To
-			if from < 0 {
-				from = 0
-			}
-			if from >= len(runes) {
-				continue
-			}
-			if to > len(runes) {
-				to = len(runes)
-			}
-			if to <= from {
-				continue
-			}
-			x := x0 + offsets[from]
-			width := offsets[to] - offsets[from]
-			active := hasActive && span.From == activeSpan.From && span.To == activeSpan.To
-			color := withAlpha(spec.Accent, 0.42)
-			if active {
-				color = spec.Accent
-				p.Fill(ui.Rect{X: x - size*0.04, Y: chordY - chordSize*0.08,
-					W: width + size*0.08, H: chordHeight}, ui.RGBA(243, 181, 68, 0.14), size*0.1)
-			}
-			p.RichText(x, chordY, 0, lyricSpan(span.Label, chordSize, color, 650))
-			lineY := chordY + chordHeight - chordSize*0.08
-			p.Line(x, lineY, x+width, lineY, max(1, size*0.035), withAlpha(color, 0.62))
-		}
-	}
-
-	times := line.RuneTimes()
-	for i := 0; i < visible && i < len(runes); i++ {
-		r := runes[i]
-		if unicode.IsSpace(r) {
-			continue
-		}
-		x := x0 + offsets[i]
-		color := spec.Ink
-		charSize := size
-		y := textTop
-		if i == current {
-			age := spec.Time - times[i]
-			alpha := float32(1)
-			if age < 0.14 {
-				alpha = float32(math.Max(0.18, age/0.14))
-				charSize = size * (0.86 + 0.14*alpha)
-				y += size * 0.10 * (1 - alpha)
-			}
-			color = withAlpha(spec.Accent, alpha)
-		}
-		p.RichText(x, y, 0, lyricSpan(string(r), charSize, color, 600))
-	}
-}
-
-func measureRunes(p *ui.Painter, runes []rune, size float32) ([]float32, float32) {
-	widths := make([]float32, len(runes))
-	total := float32(0)
-	for i, r := range runes {
-		width, _ := p.MeasureText(0, lyricSpan(string(r), size, ui.Transparent, 600))
-		if width <= 0 && unicode.IsSpace(r) {
-			width = size * 0.32
-		}
-		widths[i] = width
-		total += width
-	}
-	return widths, total
+	p.Fill(card, withAlpha(ui.RGBA(10, 9, 8, 1), alpha*0.68), size*0.30)
+	p.RichText(x, y, 0, lyricSpan(glyph, size, withAlpha(spec.Ink, alpha), 650))
 }
 
 func lyricSpan(value string, size float32, color ui.Color, weight int) ui.Span {

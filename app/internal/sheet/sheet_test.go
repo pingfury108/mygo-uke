@@ -1,6 +1,7 @@
 package sheet
 
 import (
+	"math"
 	"testing"
 
 	"mygo-uke/internal/project"
@@ -117,6 +118,40 @@ func TestDecodeKeepsChordPositions(t *testing.T) {
 	}
 }
 
+func TestDecodeMapsPrintedChordRowToCharacters(t *testing.T) {
+	raw := `{"lines":[{"chords":"F      G   Em7   Am","lyrics":"好想能看到 你嘴角微笑"}]}`
+	parsed, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marks := parsed.Lines[0].Chords
+	if len(marks) != 4 {
+		t.Fatalf("marks = %+v", marks)
+	}
+	want := []project.ChordMark{
+		{At: 0, Label: "F"},
+		{At: 3, Label: "G"},
+		{At: 6, Label: "Em7"},
+		{At: 9, Label: "Am"},
+	}
+	for i := range want {
+		if marks[i] != want[i] {
+			t.Fatalf("mark %d = %+v, want %+v", i, marks[i], want[i])
+		}
+	}
+}
+
+func TestDecodeKeepsChordOnlyRow(t *testing.T) {
+	raw := `{"lines":[{"chords":"F   G   C","lyrics":""}]}`
+	parsed, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.Lines) != 1 || len(parsed.Lines[0].Chords) != 3 {
+		t.Fatalf("parsed = %+v", parsed)
+	}
+}
+
 func TestAlignUsesASRSpans(t *testing.T) {
 	parsed := &Sheet{Lines: []Line{
 		{Chords: marks("F", "G", "Em7", "Am"), Lyrics: "好想能看到 你嘴角微笑"},
@@ -143,6 +178,68 @@ func TestAlignUsesASRSpans(t *testing.T) {
 	if lines[2].Lyrics != parsed.Lines[2].Lyrics {
 		t.Errorf("line 2 lyrics = %q", lines[2].Lyrics)
 	}
+}
+
+func TestAlignSpansLinesAcrossUtterancesAndDropsUnsungRepeat(t *testing.T) {
+	chart := &Sheet{Lines: []Line{
+		{Lyrics: "好想能看到 你嘴角微笑 最好在下一秒 好想能听到 你轻声歌唱"},
+		{Lyrics: "最好在下一秒"},
+		{Lyrics: "纯白棒球帽 墨绿色衣角 时间静止的美好 默契发生在每个下一秒"},
+		{Lyrics: "爱上同一种口味的蛋糕 不约而同哼唱一段曲调"},
+		{Lyrics: "喜欢这样看你傻傻的笑 好想能这样 就白头到老 最好从下一秒"},
+		{Lyrics: "好想能看到 你嘴角微笑 最好在下一秒 好想能听到 你轻声歌唱"},
+		{Lyrics: "最好在下一秒"},
+		{Lyrics: "纯白棒球帽 墨绿色衣角 时间静止的美好 默契发生在每个下一秒"},
+		{Lyrics: "爱上同一种口味的蛋糕 不约而同哼唱一段曲调"},
+		{Lyrics: "喜欢这样看你傻傻的笑 好想能这样 就白头到老 最好从下一秒"},
+	}}
+	asr := []project.Line{
+		{Start: 3.65, End: 16.36, Text: "好想能看到你嘴角微笑，最好在下一秒。"},
+		{Start: 16.87, End: 28.19, Text: "好想能听到你轻声歌唱，最好在下一秒。"},
+		{Start: 29.69, End: 32.90, Text: "纯白的猫，"},
+		{Start: 32.90, End: 36.74, Text: "墨绿色衣角，"},
+		{Start: 36.74, End: 41.87, Text: "时间静止的美好。"},
+		{Start: 42.45, End: 47.98, Text: "默契发生在每个下一秒。"},
+		{Start: 48.67, End: 54.13, Text: "爱上同一种口味的蛋糕。"},
+		{Start: 54.82, End: 60.41, Text: "不约而同哼唱一段曲调。"},
+		{Start: 60.68, End: 65.88, Text: "喜欢这样看你傻傻的笑。"},
+		{Start: 66.73, End: 78.61, Text: "好想能这样就白头到老，最后从下一秒。"},
+	}
+
+	lines := Align(chart, asr, 80.63)
+	if len(lines) != 5 {
+		t.Fatalf("lines = %d, want 5 (the repeated chart tail is not sung)", len(lines))
+	}
+	want := []struct{ start, end float64 }{
+		{3.65, 23.945},
+		{23.945, 28.19},
+		{29.69, 47.98},
+		{48.67, 60.41},
+		{60.68, 78.61},
+	}
+	for i, item := range want {
+		if math.Abs(lines[i].Start-item.start) > 0.001 || math.Abs(lines[i].End-item.end) > 0.001 {
+			t.Errorf("line %d = %.3f-%.3f, want %.3f-%.3f",
+				i, lines[i].Start, lines[i].End, item.start, item.end)
+		}
+	}
+	if got := charTime(t, lines[0], '唱'); math.Abs(got-23.238) > 0.05 {
+		t.Errorf("唱 @ %.3f, want ~23.238", got)
+	}
+	if got := charTime(t, lines[1], '最'); math.Abs(got-23.945) > 0.05 {
+		t.Errorf("最 @ %.3f, want ~23.945", got)
+	}
+}
+
+func charTime(t *testing.T, line TimedLine, target rune) float64 {
+	t.Helper()
+	for i, r := range []rune(line.Lyrics) {
+		if r == target {
+			return line.CharTimes[i]
+		}
+	}
+	t.Fatalf("%q not found in %q", target, line.Lyrics)
+	return 0
 }
 
 func TestChordsSpreadsLineChords(t *testing.T) {

@@ -5,16 +5,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // Line is one finalized sentence with seconds-based timing.
 type Line struct {
-	Start float64
-	End   float64
-	Text  string
+	Start     float64
+	End       float64
+	Text      string
+	CharTimes []float64
 }
 
 // TranscribeFile streams a 16kHz/16bit/mono raw PCM file through the
@@ -132,6 +135,9 @@ func splitLongLines(lines []Line) []Line {
 			out = append(out, line)
 			continue
 		}
+		if splitLineWithTimes(line, parts, &out) {
+			continue
+		}
 		total := 0
 		for _, part := range parts {
 			total += len([]rune(part))
@@ -233,6 +239,7 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 		end      float64
 		text     string
 		definite bool
+		words    []Word
 	}
 	groups := make([]group, 0, len(utterances))
 	for _, item := range utterances {
@@ -259,7 +266,7 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 		}
 		if index < 0 {
 			groups = append(groups, group{
-				start: start, end: end, text: text, definite: item.Definite,
+				start: start, end: end, text: text, definite: item.Definite, words: item.Words,
 			})
 			continue
 		}
@@ -272,6 +279,7 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 			g.end = end
 			g.text = text
 			g.definite = item.Definite
+			g.words = item.Words
 		}
 	}
 	sort.SliceStable(groups, func(i, j int) bool {
@@ -280,6 +288,9 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 	lines := make([]Line, 0, len(groups))
 	for _, g := range groups {
 		start, end := g.start, g.end
+		if wordStart, wordEnd, ok := wordSpan(g.words); ok {
+			start, end = wordStart, wordEnd
+		}
 		if duration > 0 {
 			start = min(start, duration)
 			end = min(end, duration)
@@ -287,9 +298,209 @@ func linesFrom(utterances []Utterance, duration float64) []Line {
 		if end <= start {
 			continue
 		}
-		lines = append(lines, Line{Start: start, End: end, Text: g.text})
+		lines = append(lines, Line{
+			Start:     start,
+			End:       end,
+			Text:      g.text,
+			CharTimes: charTimesFromWords(g.text, g.words, start, end),
+		})
 	}
 	return lines
+}
+
+func wordSpan(words []Word) (float64, float64, bool) {
+	start, end := math.Inf(1), math.Inf(-1)
+	for _, word := range words {
+		if word.EndMS <= word.StartMS {
+			continue
+		}
+		start = math.Min(start, word.StartMS/1000)
+		end = math.Max(end, word.EndMS/1000)
+	}
+	if math.IsInf(start, 1) || end <= start {
+		return 0, 0, false
+	}
+	return start, end, true
+}
+
+// splitLineWithTimes keeps word-level timings when one utterance is longer
+// than a subtitle line. It returns false when the parts cannot be located in
+// the original text, so the caller can fall back to proportional splitting.
+func splitLineWithTimes(line Line, parts []string, out *[]Line) bool {
+	runes := []rune(line.Text)
+	if len(line.CharTimes) != len(runes) || len(parts) == 0 {
+		return false
+	}
+	var split []Line
+	search := 0
+	for i, part := range parts {
+		partRunes := []rune(part)
+		offset := indexRunes(runes[search:], partRunes)
+		if offset < 0 {
+			return false
+		}
+		start := search + offset
+		end := start + len(partRunes)
+		partStart := line.CharTimes[start]
+		partEnd := line.End
+		if i+1 < len(parts) {
+			if next := indexRunes(runes[end:], []rune(parts[i+1])); next >= 0 {
+				partEnd = line.CharTimes[end+next]
+			}
+		}
+		if partEnd <= partStart {
+			partEnd = partStart + 0.2
+		}
+		split = append(split, Line{
+			Start:     partStart,
+			End:       partEnd,
+			Text:      part,
+			CharTimes: append([]float64(nil), line.CharTimes[start:end]...),
+		})
+		search = end
+	}
+	*out = append(*out, split...)
+	return true
+}
+
+func indexRunes(haystack, needle []rune) int {
+	if len(needle) == 0 {
+		return 0
+	}
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		match := true
+		for j := range needle {
+			if haystack[i+j] != needle[j] {
+				match = false
+				break
+			}
+		}
+		if match {
+			return i
+		}
+	}
+	return -1
+}
+
+// charTimesFromWords turns word/character timestamps into a start time for
+// every rune in the sentence. Punctuation inherits the previous character.
+func charTimesFromWords(text string, words []Word, start, end float64) []float64 {
+	runes := []rune(text)
+	if len(runes) == 0 || len(words) == 0 {
+		return nil
+	}
+	type token struct {
+		r     rune
+		start float64
+	}
+	var tokens []token
+	for _, word := range words {
+		if word.EndMS <= word.StartMS {
+			continue
+		}
+		var kept []rune
+		for _, r := range []rune(word.Text) {
+			if singableRune(r) {
+				kept = append(kept, unicode.ToLower(r))
+			}
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		step := (word.EndMS - word.StartMS) / float64(len(kept))
+		for i, r := range kept {
+			tokens = append(tokens, token{
+				r:     r,
+				start: (word.StartMS + step*float64(i)) / 1000,
+			})
+		}
+	}
+	if len(tokens) == 0 {
+		return nil
+	}
+	times := make([]float64, len(runes))
+	for i := range times {
+		times[i] = -1
+	}
+	next := 0
+	for i, r := range runes {
+		if !singableRune(r) {
+			continue
+		}
+		target := unicode.ToLower(r)
+		for next < len(tokens) && tokens[next].r != target {
+			next++
+		}
+		if next >= len(tokens) {
+			break
+		}
+		times[i] = clampTime(tokens[next].start, start, end)
+		next++
+	}
+	return fillRuneTimes(runes, times, start, end)
+}
+
+func fillRuneTimes(runes []rune, times []float64, start, end float64) []float64 {
+	first := -1.0
+	for _, value := range times {
+		if value >= 0 {
+			first = value
+			break
+		}
+	}
+	if first < 0 {
+		return nil
+	}
+	prev := -1
+	for i := range runes {
+		if times[i] >= 0 {
+			prev = i
+			continue
+		}
+		if !singableRune(runes[i]) {
+			if prev >= 0 {
+				times[i] = times[prev]
+			} else {
+				times[i] = first
+			}
+			continue
+		}
+		next := -1
+		for j := i + 1; j < len(times); j++ {
+			if times[j] >= 0 {
+				next = j
+				break
+			}
+		}
+		switch {
+		case prev >= 0 && next >= 0:
+			times[i] = times[prev] + (times[next]-times[prev])*float64(i-prev)/float64(next-prev)
+		case prev >= 0:
+			times[i] = times[prev] + (end-times[prev])/float64(max(1, len(runes)-1-prev))
+		default:
+			times[i] = first
+		}
+	}
+	for i := 1; i < len(times); i++ {
+		if times[i] < times[i-1] {
+			times[i] = times[i-1]
+		}
+	}
+	return times
+}
+
+func singableRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+func clampTime(value, low, high float64) float64 {
+	if value < low {
+		return low
+	}
+	if value > high {
+		return high
+	}
+	return value
 }
 
 func abs(value float64) float64 {

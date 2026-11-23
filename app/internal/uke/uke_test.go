@@ -50,6 +50,31 @@ func TestShapeWithCapo(t *testing.T) {
 	}
 }
 
+func TestDescribe(t *testing.T) {
+	tests := []struct {
+		label string
+		want  string
+	}{
+		{"C", "C 大三和弦 · C E G"},
+		{"Am", "Am 小三和弦 · A C E"},
+		{"G7", "G7 属七和弦 · G B D F"},
+		{"Cmaj7", "Cmaj7 大七和弦 · C E G B"},
+		{"Am7", "Am7 小七和弦 · A C E G"},
+		{"D7", "D7 属七和弦 · D F# A C"},
+		{"Bb", "Bb 大三和弦 · Bb D F"},
+		{"F", "F 大三和弦 · F A C"},
+	}
+	for _, tt := range tests {
+		c, ok := Normalize(tt.label)
+		if !ok {
+			t.Fatalf("%s did not normalize", tt.label)
+		}
+		if got := Describe(c); got != tt.want {
+			t.Errorf("Describe(%s) = %q, want %q", tt.label, got, tt.want)
+		}
+	}
+}
+
 func TestKnownShapes(t *testing.T) {
 	tests := map[string][4]int{
 		"C":  {0, 0, 0, 3},

@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-uke/internal/project"
+	"mygo-uke/internal/uke"
 )
 
 func text(c *ui.Context, s string, size float32, color ui.Color) ui.Element {
@@ -18,6 +19,14 @@ func mono(c *ui.Context, s string, size float32, color ui.Color) ui.Element {
 
 func label(c *ui.Context, s string, size float32, color ui.Color, weight int) ui.Element {
 	return ui.Text(c, s).FontSize(size).TextColor(color).FontWeight(weight)
+}
+
+func chordTooltip(name string) string {
+	chord, ok := uke.Normalize(name)
+	if !ok {
+		return name
+	}
+	return uke.Describe(chord)
 }
 
 // flatButton is the quiet bordered button used in the title bar and stage

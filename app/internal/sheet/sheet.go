@@ -19,6 +19,50 @@ type Line struct {
 	Lyrics string    `json:"lyrics"`
 }
 
+// UnmarshalJSON keeps a printed chord row's spacing. Vision models are much
+// better at copying "F   G   Em7" than at computing character indexes.
+func (l *Line) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Chords json.RawMessage `json:"chords"`
+		Lyrics string          `json:"lyrics"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	l.Lyrics = raw.Lyrics
+	if len(raw.Chords) == 0 || string(raw.Chords) == "null" {
+		l.Chords = nil
+		return nil
+	}
+	var row string
+	if json.Unmarshal(raw.Chords, &row) == nil {
+		l.Chords = chordRowMarks(row, l.Lyrics)
+		return nil
+	}
+	var marks chordList
+	if err := json.Unmarshal(raw.Chords, &marks); err != nil {
+		return err
+	}
+	l.Chords = marks
+	return nil
+}
+
+// chordRowMarks maps a printed chord row onto lyric runes. Without lyrics,
+// the row is a chord-only section and its positions are filled in later.
+func chordRowMarks(row, lyrics string) chordList {
+	if lyrics != "" {
+		if marks := anchorsFromRows(row, lyrics); len(marks) > 0 {
+			return marks
+		}
+	}
+	tokens := chordColumns(row)
+	out := make(chordList, 0, len(tokens))
+	for _, token := range tokens {
+		out = append(out, project.ChordMark{At: -1, Label: token.label})
+	}
+	return out
+}
+
 // chordList accepts chord objects with positions, plain label arrays, and
 // "F G" strings, which models mix up. Missing positions are filled over the
 // lyric line later.

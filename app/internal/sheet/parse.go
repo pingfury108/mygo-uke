@@ -49,7 +49,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return &Client{model: model}, nil
 }
 
-const prompt = `你是尤克里里曲谱 OCR。把图片里的和弦谱转成严格 JSON，不要任何解释：{"key":"C","capo":0,"bpm":90,"timeSignature":[4,4],"lines":[{"lyrics":"好想能看到 你嘴角微笑","chords":[{"at":0,"label":"F"},{"at":3,"label":"G"},{"at":6,"label":"Em7"}]}]}。要求：lines 按从上到下排列；每行歌词对应它上方印的和弦；at 是和弦正下方歌词的 0 基字符下标，中文按一个字一个下标计算，和弦覆盖多个字时只标起始字；chords 保留原始写法（如 Em7、A7、Bb），不要移调；如果无法判断某个和弦的位置，省略该和弦的 at 字段，不要瞎猜；只有和弦没有歌词的段落也要输出一行，lyrics 用空字符串；忽略二维码、水印、和弦图、页脚、标题；重复段落要逐行输出，不要省略；如果谱面写了 BPM/速度，填到 bpm，否则 bpm 用 0；如果谱面写了拍号，填到 timeSignature，否则用 [4,4]；如果看不到调性或 capo，key 用空字符串，capo 用 0；只输出 JSON。`
+const prompt = `你是尤克里里曲谱 OCR。把图片里的和弦谱转成严格 JSON，不要任何解释：{"key":"C","capo":0,"bpm":0,"timeSignature":[4,4],"lines":[{"chords":"F      G   Em7   Am","lyrics":"好想能看到 你嘴角微笑"}]}。要求：按谱面从上到下逐行输出；和弦行原样放进 chords 字符串，尽量保留和弦之间的空格和列位置；歌词行放在 lyrics；不要计算字符下标，不要输出 at；纯和弦行也要输出，lyrics 用空字符串；chords 保留原始写法（如 Em7、A7、Bb），不要移调；忽略二维码、水印、和弦图、页脚、标题；重复段落要逐行输出，不要省略；如果谱面写了 BPM/速度，填到 bpm，否则 bpm 用 0；如果谱面写了拍号，填到 timeSignature，否则用 [4,4]；如果看不到调性或 capo，key 用空字符串，capo 用 0；只输出 JSON。`
 
 // ParseImage reads a chart image and returns its structured lines.
 func (c *Client) ParseImage(ctx context.Context, path string) (*Sheet, error) {

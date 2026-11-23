@@ -25,6 +25,10 @@ func (l Line) RuneTimes() []float64 {
 	if len(runes) == 0 {
 		return times
 	}
+	if len(l.CharTimes) == len(runes) {
+		copy(times, l.CharTimes)
+		return times
+	}
 	total := 0.0
 	for _, r := range runes {
 		total += timingWeight(r)

@@ -30,6 +30,19 @@ func TestPunctuationAppearsWithPreviousCharacter(t *testing.T) {
 	}
 }
 
+func TestRuneTimesUsesCharTimes(t *testing.T) {
+	line := Line{
+		Start:     0,
+		End:       10,
+		Text:      "好想",
+		CharTimes: []float64{1, 4},
+	}
+	times := line.RuneTimes()
+	if len(times) != 2 || times[0] != 1 || times[1] != 4 {
+		t.Fatalf("times = %v", times)
+	}
+}
+
 func TestLineChordSpansCoverCharacterRanges(t *testing.T) {
 	p := New("test")
 	p.Lines = []Line{{

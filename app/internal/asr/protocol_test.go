@@ -99,7 +99,11 @@ func TestParseServerResult(t *testing.T) {
 	raw := serverResultFrame(t, 0, map[string]any{"result": map[string]any{
 		"text": "你好世界",
 		"utterances": []map[string]any{
-			{"text": "你好", "start_time": 100, "end_time": 600, "definite": true},
+			{"text": "你好", "start_time": 100, "end_time": 600, "definite": true,
+				"words": []map[string]any{
+					{"text": "你", "start_time": 120, "end_time": 300},
+					{"text": "好", "start_time": 300, "end_time": 600},
+				}},
 			{"text": "世界", "start_time": 600, "end_time": 1200, "definite": true},
 		},
 	}})
@@ -110,6 +114,9 @@ func TestParseServerResult(t *testing.T) {
 	if len(f.Utterances) != 2 || f.Utterances[0].StartMS != 100 ||
 		f.Utterances[1].EndMS != 1200 {
 		t.Fatalf("句级结果 %+v", f.Utterances)
+	}
+	if len(f.Utterances[0].Words) != 2 || f.Utterances[0].Words[1].EndMS != 600 {
+		t.Fatalf("词级结果 %+v", f.Utterances[0].Words)
 	}
 
 	final := ParseServerFrame(serverResultFrame(t, flagFinal, map[string]any{"result": map[string]any{"text": "你好世界。"}}))

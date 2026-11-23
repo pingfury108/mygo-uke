@@ -50,7 +50,7 @@ func (a *app) inspector(c *ui.Context) {
 func (a *app) inspectorTabs(c *ui.Context) {
 	ui.Row(c).Height(45).Padding(0, 12, 0, 12).Gap(2).
 		AlignItems(ui.Stretch).Children(func() {
-		for i, name := range []string{"字幕", "和弦", "样式"} {
+		for i, name := range []string{"字幕", "小节", "样式"} {
 			index := i
 			on := a.tab == index
 			b := ui.ButtonBase(c).Grow(1).Center().Label(name).FocusRing(false)
@@ -170,12 +170,18 @@ func (a *app) subtitleList(c *ui.Context) {
 		card.Children(func() {
 			ui.Column(c).FillWidth().Gap(3).Children(func() {
 				mono(c, fmt.Sprintf("%s — %s", timeText(l.Start), timeText(l.End)), 8.5, pal.faint)
-				if chords := lineChordText(a.proj.LineChordSpans(index)); chords != "—" {
-					mono(c, chords, 9, pal.accent).SingleLine()
+				chips := a.lineChordChips(index)
+				if len(chips) > 0 {
+					a.lineChart(c, index, l, chips)
+				} else {
+					label(c, l.Text, 12, pal.text, 500)
 				}
-				label(c, l.Text, 12, pal.text, 500)
 				ui.Row(c).Gap(10).Children(func() {
-					text(c, "点卡片跳转 · 双击编辑", 9, pal.muted)
+					hint := "点卡片跳转 · 双击编辑"
+					if len(chips) > 0 {
+						hint = "点卡片跳转 · 点和弦改 · 双击编辑"
+					}
+					text(c, hint, 9, pal.muted)
 					if l.NeedsReview {
 						ui.Box(c).Grow(1)
 						text(c, "待确认", 8.5, pal.warn)
@@ -189,6 +195,122 @@ func (a *app) subtitleList(c *ui.Context) {
 		}
 	}
 
+}
+
+type lineChordChip struct {
+	Label     string
+	Time      float64
+	Bar       int
+	Inherited bool
+	From      int
+	To        int
+}
+
+func (a *app) lineChordChips(index int) []lineChordChip {
+	if a.proj == nil || index < 0 || index >= len(a.proj.Lines) {
+		return nil
+	}
+	line := a.proj.Lines[index]
+	times := line.RuneTimes()
+	var out []lineChordChip
+	for _, span := range a.proj.LineChordSpans(index) {
+		if span.Label == "" {
+			continue
+		}
+		if len(out) > 0 && out[len(out)-1].Label == span.Label {
+			out[len(out)-1].To = span.To
+			continue
+		}
+		at := span.From
+		if at < 0 {
+			at = 0
+		}
+		when := line.Start
+		if at < len(times) {
+			when = times[at]
+		}
+		bar := score.BarIndexAt(a.proj.Bars, when)
+		out = append(out, lineChordChip{
+			Label: span.Label, Time: when, Bar: bar, Inherited: span.Inherited,
+			From: span.From, To: span.To,
+		})
+	}
+	return out
+}
+
+// lineChart puts each chord above the first character it covers and keeps
+// that chord's lyric text directly below it, so the card mirrors the printed
+// chart instead of showing a detached row of chips.
+func (a *app) lineChart(c *ui.Context, index int, line project.Line, chips []lineChordChip) {
+	runes := []rune(line.Text)
+	const (
+		chipRow = 18
+		space   = 3.4
+	)
+	ui.Row(c).Wrap().Gap(0).AlignItems(ui.Start).Children(func() {
+		for _, chip := range chips {
+			item := chip
+			from, to := item.From, item.To
+			if from < 0 {
+				from = 0
+			}
+			if to > len(runes) {
+				to = len(runes)
+			}
+			if from >= to {
+				continue
+			}
+			head, core, tail := splitSpace(string(runes[from:to]))
+			col := ui.Column(c).Padding(chipRow, 0, 0, 0)
+			col.Children(func() {
+				color := pal.accent
+				if item.Inherited {
+					color = pal.muted
+				}
+				b := ui.ButtonBase(c).Absolute().Top(0).Left(0).Height(16).Radius(4).
+					Padding(0, 4, 0, 4).Center().Label(item.Label).FocusRing(false).
+					Background(pal.panel2).Border(1, pal.line)
+				if b.Hovered() {
+					b.Background(pal.warnBG)
+				}
+				b.OnClick(func() {
+					a.selectedLine = index
+					a.seekTo(item.Time)
+					if item.Bar >= 0 {
+						a.chordBar = item.Bar
+						a.chordChoice = item.Label
+						a.modal = modalChords
+					}
+				})
+				b.Children(func() {
+					label(c, item.Label, 8, color, 600)
+				})
+				ui.Row(c).AlignItems(ui.End).Children(func() {
+					if head > 0 {
+						ui.Box(c).Width(float32(head) * space).Height(1)
+					}
+					if core != "" {
+						label(c, core, 12, pal.text, 500)
+					}
+					if tail > 0 {
+						ui.Box(c).Width(float32(tail) * space).Height(1)
+					}
+				})
+			})
+		}
+	})
+}
+
+func splitSpace(s string) (head int, core string, tail int) {
+	runes := []rune(s)
+	for head < len(runes) && runes[head] == ' ' {
+		head++
+	}
+	tail = len(runes)
+	for tail > head && runes[tail-1] == ' ' {
+		tail--
+	}
+	return head, string(runes[head:tail]), len(runes) - tail
 }
 
 func (a *app) subtitleFooter(c *ui.Context) {
@@ -252,7 +374,7 @@ func (a *app) chordHeader(c *ui.Context) {
 			for _, name := range []string{"C", "G", "Am", "Em", "F", "Dm", "G7", "Cmaj7", "Am7", "Em7", "D7", "Bb"} {
 				chord := name
 				b := ui.ButtonBase(c).Height(30).Radius(7).Center().Label(chord).FocusRing(false).
-					Background(pal.card).Border(1, pal.line)
+					Background(pal.card).Border(1, pal.line).Tooltip(chordTooltip(chord))
 				if b.Hovered() {
 					b.Background(pal.warnBG)
 				}

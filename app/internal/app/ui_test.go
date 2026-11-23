@@ -21,7 +21,7 @@ func TestStudioInteractions(t *testing.T) {
 		t.Fatal("subtitle inspector did not render")
 	}
 
-	if err := tt.Click("和弦"); err != nil {
+	if err := tt.Click("小节"); err != nil {
 		t.Fatal(err)
 	}
 	tt.Frame()
@@ -269,6 +269,105 @@ func TestSubtitleClickSeeks(t *testing.T) {
 	}
 }
 
+func TestSubtitleChordChipOpensBarEditor(t *testing.T) {
+	a := newApp()
+	a.proj.Lines[0].Chords = []project.ChordMark{
+		{At: 0, Label: "Bbmaj7"},
+		{At: 4, Label: "Cmaj7"},
+	}
+	a.selectedLine = 3
+	a.playhead = 0
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if _, ok := tt.Find("Cmaj7"); !ok {
+		t.Fatal("subtitle line chord chip missing")
+	}
+	if err := tt.Click("Cmaj7"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.modal != modalChords {
+		t.Fatalf("modal = %v, want chord editor", a.modal)
+	}
+	if a.chordBar < 0 || a.chordChoice != "Cmaj7" {
+		t.Fatalf("chordBar = %d, choice = %q", a.chordBar, a.chordChoice)
+	}
+	if a.selectedLine != 0 {
+		t.Fatalf("selectedLine = %d, want 0", a.selectedLine)
+	}
+	if a.playhead < a.proj.Lines[0].Start+0.5 {
+		t.Fatalf("playhead = %.2f, chip should seek past the line start", a.playhead)
+	}
+}
+
+func TestSubtitleChordChipSitsAboveItsLyricSpan(t *testing.T) {
+	a := newApp()
+	a.proj.Lines[0].Text = "好想能看到 你嘴角微笑"
+	a.proj.Lines[0].Chords = []project.ChordMark{
+		{At: 0, Label: "F"},
+		{At: 3, Label: "Em7"},
+	}
+	a.selectedLine = 0
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+
+	chip, ok := tt.Find("Em7")
+	if !ok {
+		t.Fatal("subtitle chord chip missing")
+	}
+	lyric, ok := tt.Find("看到 你嘴角微笑")
+	if !ok {
+		t.Fatal("second lyric span missing")
+	}
+	if chip.X < lyric.X-1 || chip.X > lyric.X+1 {
+		t.Fatalf("chip X = %.1f, lyric X = %.1f", chip.X, lyric.X)
+	}
+	if chip.Y+chip.H > lyric.Y {
+		t.Fatalf("chip bottom = %.1f, lyric top = %.1f", chip.Y+chip.H, lyric.Y)
+	}
+}
+
+func TestSubtitleChordChipWrapsWithItsLongSpan(t *testing.T) {
+	a := newApp()
+	a.proj.Lines[0].Text = "纯白棒球帽 墨绿色衣角 时间静止的美好 默契发生在每个下一秒"
+	a.proj.Lines[0].Chords = []project.ChordMark{
+		{At: 0, Label: "F0"},
+		{At: 3, Label: "G0"},
+		{At: 6, Label: "Em0"},
+		{At: 9, Label: "A0"},
+		{At: 12, Label: "F1"},
+		{At: 15, Label: "G1"},
+		{At: 18, Label: "C1"},
+		{At: 20, Label: "F2"},
+		{At: 29, Label: "Em1"},
+	}
+	a.selectedLine = 0
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+
+	first, ok := tt.Find("F0")
+	if !ok {
+		t.Fatal("first chord chip missing")
+	}
+	chip, ok := tt.Find("F2")
+	if !ok {
+		t.Fatal("wrapped chord chip missing")
+	}
+	lyric, ok := tt.Find("默契发生在每个下一")
+	if !ok {
+		t.Fatal("wrapped lyric span missing")
+	}
+	if chip.X < lyric.X-1 || chip.X > lyric.X+1 {
+		t.Fatalf("chip X = %.1f, lyric X = %.1f", chip.X, lyric.X)
+	}
+	if chip.Y+chip.H > lyric.Y {
+		t.Fatalf("chip bottom = %.1f, lyric top = %.1f", chip.Y+chip.H, lyric.Y)
+	}
+	if chip.Y <= first.Y {
+		t.Fatalf("chip Y = %.1f, first chip Y = %.1f", chip.Y, first.Y)
+	}
+}
+
 func TestChordToolbarStaysFixed(t *testing.T) {
 	a := newApp()
 	a.tab = 1
@@ -295,6 +394,24 @@ func TestChordToolbarStaysFixed(t *testing.T) {
 	tt.Frame()
 	if a.inspectorScroll[1].Y <= 0 {
 		t.Fatalf("bar list did not scroll to current bar: Y = %.1f", a.inspectorScroll[1].Y)
+	}
+}
+
+func TestChordPaletteTooltipExplainsChord(t *testing.T) {
+	a := newApp()
+	a.tab = 1
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+
+	r, ok := tt.Find("Cmaj7")
+	if !ok {
+		t.Fatal("chord palette button missing")
+	}
+	tt.Move(r.X+r.W/2, r.Y+r.H/2)
+	tt.Advance(700 * time.Millisecond)
+	tt.Frame()
+	if !tt.HasText("Cmaj7 大七和弦 · C E G B") {
+		t.Fatalf("chord tooltip missing: %v", tt.Texts())
 	}
 }
 

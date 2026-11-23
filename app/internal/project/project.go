@@ -52,11 +52,12 @@ type Project struct {
 	Style         Style                `json:"style"`
 }
 
-// Line is one sentence of lyrics, with the time span ASR gave it.
+// Line is one sentence of lyrics placed on the song timeline.
 type Line struct {
 	Start       float64     `json:"start"`
 	End         float64     `json:"end"`
 	Text        string      `json:"text"`
+	CharTimes   []float64   `json:"charTimes,omitempty"`
 	Conf        float64     `json:"conf,omitempty"`
 	NeedsReview bool        `json:"needsReview,omitempty"`
 	Chords      []ChordMark `json:"chords,omitempty"`

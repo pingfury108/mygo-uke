@@ -32,8 +32,95 @@ var pitchNames = [12]string{
 	"C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B",
 }
 
+var sharpNames = [12]string{
+	"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+}
+
+var qualityNames = map[string]string{
+	"":     "大三和弦",
+	"m":    "小三和弦",
+	"7":    "属七和弦",
+	"maj7": "大七和弦",
+	"m7":   "小七和弦",
+	"6":    "大六和弦",
+	"m6":   "小六和弦",
+	"sus4": "挂四和弦",
+	"sus2": "挂二和弦",
+	"dim":  "减三和弦",
+	"aug":  "增三和弦",
+	"add9": "加九和弦",
+}
+
+var qualityIntervals = map[string][]int{
+	"":     {0, 4, 7},
+	"m":    {0, 3, 7},
+	"7":    {0, 4, 7, 10},
+	"maj7": {0, 4, 7, 11},
+	"m7":   {0, 3, 7, 10},
+	"6":    {0, 4, 7, 9},
+	"m6":   {0, 3, 7, 9},
+	"sus4": {0, 5, 7},
+	"sus2": {0, 2, 7},
+	"dim":  {0, 3, 6},
+	"aug":  {0, 4, 8},
+	"add9": {0, 4, 7, 14},
+}
+
 // Name returns the normalized chord label, without a slash bass.
 func (c Chord) Name() string { return pitchNames[c.Root] + c.Quality }
+
+// Describe explains a chord in one line: its quality and the notes it holds.
+func Describe(c Chord) string {
+	flats := preferFlats(c)
+	name := c.Name()
+	if c.Bass >= 0 {
+		name += "/" + noteName(c.Bass, flats)
+	}
+	quality := qualityNames[c.Quality]
+	if quality == "" {
+		quality = "和弦"
+	}
+	intervals, ok := qualityIntervals[c.Quality]
+	if !ok {
+		intervals = qualityIntervals[""]
+	}
+	notes := make([]string, 0, len(intervals))
+	for i, interval := range intervals {
+		note := noteName((c.Root+interval)%12, flats)
+		if c.Quality == "add9" && i == len(intervals)-1 {
+			note += "(9)"
+		}
+		notes = append(notes, note)
+	}
+	out := name + " " + quality + " · " + strings.Join(notes, " ")
+	if c.Approx {
+		out += "（近似）"
+	}
+	return out
+}
+
+func preferFlats(c Chord) bool {
+	if strings.Contains(c.Raw, "#") {
+		return false
+	}
+	if strings.Contains(c.Raw, "b") {
+		return true
+	}
+	switch c.Root {
+	case 1, 3, 5, 6, 8, 10:
+		return true
+	default:
+		return false
+	}
+}
+
+func noteName(pitch int, flats bool) string {
+	pitch = (pitch%12 + 12) % 12
+	if flats {
+		return pitchNames[pitch]
+	}
+	return sharpNames[pitch]
+}
 
 // Normalize turns a chart chord label into a ukulele-friendly chord.
 // Slash chords keep their bass for display but are played as the root

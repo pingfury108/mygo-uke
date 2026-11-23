@@ -12,10 +12,11 @@ import (
 
 // TimedLine is one chart line placed on the song timeline.
 type TimedLine struct {
-	Chords []project.ChordMark
-	Lyrics string
-	Start  float64
-	End    float64
+	Chords    []project.ChordMark
+	Lyrics    string
+	CharTimes []float64
+	Start     float64
+	End       float64
 }
 
 // Align matches chart lines to the ASR transcript and gives each line a span.
@@ -26,16 +27,20 @@ func Align(s *Sheet, asr []project.Line, duration float64) []TimedLine {
 	found := anchors(s.Lines, asr, duration)
 	out := make([]TimedLine, 0, len(s.Lines))
 	for i, line := range s.Lines {
+		if found[i].start < 0 {
+			continue
+		}
 		start := clamp(found[i].start, 0, duration)
 		end := clamp(found[i].end, 0, duration)
 		if end <= start {
 			end = math.Min(duration, start+0.5)
 		}
 		out = append(out, TimedLine{
-			Chords: line.Chords,
-			Lyrics: line.Lyrics,
-			Start:  round(start),
-			End:    round(end),
+			Chords:    line.Chords,
+			Lyrics:    line.Lyrics,
+			CharTimes: found[i].chars,
+			Start:     round(start),
+			End:       round(end),
 		})
 	}
 	return out
@@ -66,7 +71,9 @@ func Chords(lines []TimedLine, duration float64) []score.ChordSegment {
 			}
 			continue
 		}
-		times := (project.Line{Start: line.Start, End: line.End, Text: line.Lyrics}).RuneTimes()
+		times := (project.Line{
+			Start: line.Start, End: line.End, Text: line.Lyrics, CharTimes: line.CharTimes,
+		}).RuneTimes()
 		for _, mark := range marks {
 			at := mark.At
 			if at < 0 {
@@ -128,11 +135,12 @@ func Apply(p *project.Project, s *Sheet) {
 			continue
 		}
 		lines = append(lines, project.Line{
-			Start:  line.Start,
-			End:    line.End,
-			Text:   line.Lyrics,
-			Conf:   1,
-			Chords: append([]project.ChordMark(nil), line.Chords...),
+			Start:     line.Start,
+			End:       line.End,
+			Text:      line.Lyrics,
+			CharTimes: append([]float64(nil), line.CharTimes...),
+			Conf:      1,
+			Chords:    append([]project.ChordMark(nil), line.Chords...),
 		})
 	}
 	if len(lines) > 0 {
@@ -248,54 +256,198 @@ func FromProject(p *project.Project) *Sheet {
 type span struct {
 	start float64
 	end   float64
+	chars []float64
 }
 
 func anchors(sheetLines []Line, asr []project.Line, duration float64) []span {
-	m, n := len(sheetLines), len(asr)
-	dp := make([][]float64, m+1)
-	for i := range dp {
-		dp[i] = make([]float64, n+1)
+	out := make([]span, len(sheetLines))
+	for i := range out {
+		out[i].start = -1
 	}
-	for i := 1; i <= m; i++ {
-		for j := 1; j <= n; j++ {
-			best := math.Max(dp[i-1][j], dp[i][j-1])
-			if sim := similarity(sheetLines[i-1].Lyrics, asr[j-1].Text); sim >= 0.25 {
-				best = math.Max(best, dp[i-1][j-1]+sim)
+
+	chart, asrChars := timelineChars(sheetLines, asr)
+	if len(chart) == 0 || len(asrChars) == 0 {
+		return spreadSpans(sheetLines, duration)
+	}
+	pairs := lcsPairs(chart, asrChars)
+	if len(pairs) == 0 {
+		return spreadSpans(sheetLines, duration)
+	}
+
+	type matchInfo struct {
+		count      int
+		firstStart float64
+		lastEnd    float64
+	}
+	matches := make(map[int]*matchInfo)
+	for _, pair := range pairs {
+		line := chart[pair.chart].line
+		info := matches[line]
+		if info == nil {
+			info = &matchInfo{firstStart: asrChars[pair.asr].start}
+			matches[line] = info
+		}
+		info.count++
+		info.lastEnd = asrChars[pair.asr].end
+	}
+
+	matchedLyric := false
+	for i, line := range sheetLines {
+		total := len([]rune(compact(line.Lyrics)))
+		info := matches[i]
+		if info == nil || total == 0 {
+			continue
+		}
+		coverage := float64(info.count) / float64(total)
+		if coverage < 0.3 {
+			continue
+		}
+		out[i] = span{start: clamp(info.firstStart, 0, duration), end: clamp(info.lastEnd, 0, duration)}
+		matchedLyric = true
+	}
+	if !matchedLyric {
+		return spreadSpans(sheetLines, duration)
+	}
+
+	fillChordOnlySpans(sheetLines, out, duration)
+	normalizeSpans(out, duration)
+	fillLineTimes(sheetLines, out, chart, pairs, asrChars)
+	return out
+}
+
+type chartChar struct {
+	r    rune
+	line int
+	pos  int
+}
+
+type asrChar struct {
+	r     rune
+	start float64
+	end   float64
+}
+
+type charPair struct {
+	chart int
+	asr   int
+}
+
+// timelineChars flattens the chart and ASR text into comparable runes. Each
+// ASR rune gets an equal share of its sentence span, which is the finest
+// timing the streaming ASR exposes.
+func timelineChars(lines []Line, asr []project.Line) ([]chartChar, []asrChar) {
+	var chart []chartChar
+	for i, line := range lines {
+		for pos, r := range []rune(line.Lyrics) {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				chart = append(chart, chartChar{r: unicode.ToLower(r), line: i, pos: pos})
+			}
+		}
+	}
+	var spoken []asrChar
+	for _, line := range asr {
+		runes := []rune(compact(line.Text))
+		if len(runes) == 0 || line.End <= line.Start {
+			continue
+		}
+		if len(line.CharTimes) == len([]rune(line.Text)) {
+			var timed []struct {
+				r     rune
+				start float64
+			}
+			for i, r := range []rune(line.Text) {
+				if unicode.IsLetter(r) || unicode.IsDigit(r) {
+					timed = append(timed, struct {
+						r     rune
+						start float64
+					}{r: unicode.ToLower(r), start: line.CharTimes[i]})
+				}
+			}
+			for i, item := range timed {
+				end := line.End
+				if i+1 < len(timed) && timed[i+1].start > item.start {
+					end = timed[i+1].start
+				}
+				spoken = append(spoken, asrChar{r: item.r, start: item.start, end: end})
+			}
+			continue
+		}
+		step := (line.End - line.Start) / float64(len(runes))
+		for i, r := range runes {
+			spoken = append(spoken, asrChar{
+				r:     r,
+				start: line.Start + step*float64(i),
+				end:   line.Start + step*float64(i+1),
+			})
+		}
+	}
+	return chart, spoken
+}
+
+// lcsPairs aligns the full ASR transcript against a prefix of the chart.
+// The chart tail is free: a video may only cover part of a repeated chart.
+// Skipped chart characters cost a little, so an earlier verse wins over an
+// identical later repeat instead of matching the same words at the end.
+func lcsPairs(chart []chartChar, asr []asrChar) []charPair {
+	n, m := len(chart), len(asr)
+	const chartGap = -0.1
+	dp := make([][]float64, n+1)
+	choice := make([][]byte, n+1)
+	for i := range dp {
+		dp[i] = make([]float64, m+1)
+		choice[i] = make([]byte, m+1)
+		dp[i][0] = float64(i) * chartGap
+	}
+	for i := 1; i <= n; i++ {
+		for j := 1; j <= m; j++ {
+			best := dp[i-1][j] + chartGap
+			choice[i][j] = 0
+			if dp[i][j-1] > best {
+				best = dp[i][j-1]
+				choice[i][j] = 1
+			}
+			if chart[i-1].r == asr[j-1].r {
+				best = dp[i-1][j-1] + 1
+				choice[i][j] = 2
 			}
 			dp[i][j] = best
 		}
 	}
-
-	match := make([]int, m)
-	for i := range match {
-		match[i] = -1
+	end, score := 0, 0.0
+	for i := 0; i <= n; i++ {
+		if dp[i][m] > score {
+			score = dp[i][m]
+			end = i
+		}
 	}
-	for i, j := m, n; i > 0 && j > 0; {
-		sim := similarity(sheetLines[i-1].Lyrics, asr[j-1].Text)
-		switch {
-		case sim >= 0.25 && dp[i][j] == dp[i-1][j-1]+sim:
-			match[i-1] = j - 1
+	if score == 0 {
+		return nil
+	}
+	var reversed []charPair
+	for i, j := end, m; i > 0 && j > 0; {
+		switch choice[i][j] {
+		case 2:
+			reversed = append(reversed, charPair{chart: i - 1, asr: j - 1})
 			i--
 			j--
-		case dp[i][j] == dp[i-1][j]:
+		case 0:
 			i--
 		default:
 			j--
 		}
 	}
+	pairs := make([]charPair, len(reversed))
+	for i := range reversed {
+		pairs[len(reversed)-1-i] = reversed[i]
+	}
+	return pairs
+}
 
-	out := make([]span, m)
-	for i := range out {
-		out[i].start = -1
-	}
-	for i, j := range match {
-		if j >= 0 {
-			out[i].start = asr[j].Start
-			out[i].end = asr[j].End
-		}
-	}
-	for i := range out {
-		if out[i].start >= 0 {
+// fillChordOnlySpans gives instrumental chord rows a span between their
+// neighboring lyric lines. Apply still keeps them out of the subtitle list.
+func fillChordOnlySpans(lines []Line, out []span, duration float64) {
+	for i, line := range lines {
+		if out[i].start >= 0 || strings.TrimSpace(line.Lyrics) != "" {
 			continue
 		}
 		prev, next := -1, -1
@@ -305,65 +457,135 @@ func anchors(sheetLines []Line, asr []project.Line, duration float64) []span {
 				break
 			}
 		}
-		for q := i + 1; q < m; q++ {
+		for q := i + 1; q < len(lines); q++ {
 			if out[q].start >= 0 {
 				next = q
 				break
 			}
 		}
-		switch {
-		case prev >= 0 && next >= 0:
-			ratio := float64(i-prev) / float64(next-prev)
-			out[i].start = out[prev].start + (out[next].start-out[prev].start)*ratio
-		case prev >= 0:
-			base := math.Max(out[prev].start, out[prev].end)
-			out[i].start = base + (duration-base)*float64(i-prev)/float64(m-prev)
-		case next >= 0:
-			out[i].start = out[next].start * float64(i) / float64(next)
-		default:
-			out[i].start = duration * float64(i) / float64(m)
+		start, end := 0.0, duration
+		if prev >= 0 {
+			start = out[prev].end
+		}
+		if next >= 0 {
+			end = out[next].start
+		}
+		if end <= start {
+			continue
+		}
+		out[i] = span{start: start, end: end}
+	}
+}
+
+func normalizeSpans(out []span, duration float64) {
+	last := -1
+	for i := range out {
+		if out[i].start < 0 {
+			continue
+		}
+		if last >= 0 && out[i].start < out[last].end {
+			out[last].end = out[i].start
+		}
+		if out[i].end <= out[i].start {
+			out[i].end = math.Min(duration, out[i].start+0.2)
+		}
+		last = i
+	}
+}
+
+// fillLineTimes maps matched ASR characters back to the printed lyric runes.
+// Missing characters (ASR errors) are interpolated, so the karaoke overlay can
+// follow the actual phrase boundaries instead of dividing a whole line evenly.
+func fillLineTimes(lines []Line, out []span, chart []chartChar, pairs []charPair, asr []asrChar) {
+	assigned := make([][]float64, len(lines))
+	for i, line := range lines {
+		assigned[i] = make([]float64, len([]rune(line.Lyrics)))
+		for j := range assigned[i] {
+			assigned[i][j] = -1
 		}
 	}
-	for i := 1; i < m; i++ {
-		if out[i].start <= out[i-1].start {
-			out[i].start = out[i-1].start + 0.3
+	for _, pair := range pairs {
+		item := chart[pair.chart]
+		if item.pos >= 0 && item.pos < len(assigned[item.line]) {
+			assigned[item.line][item.pos] = asr[pair.asr].start
 		}
 	}
-	for i := m - 1; i >= 0; i-- {
-		if out[i].end > out[i].start {
-			if i+1 < m && out[i].end > out[i+1].start {
-				out[i].end = out[i+1].start
+	for i, line := range lines {
+		if out[i].start < 0 || len(assigned[i]) == 0 {
+			continue
+		}
+		out[i].chars = interpolateTimes(line.Lyrics, out[i], assigned[i])
+	}
+}
+
+func interpolateTimes(text string, sp span, assigned []float64) []float64 {
+	runes := []rune(text)
+	times := make([]float64, len(runes))
+	for i := range times {
+		times[i] = -1
+	}
+	for i, value := range assigned {
+		if i >= len(times) || value < 0 {
+			continue
+		}
+		times[i] = clamp(value, sp.start, sp.end)
+	}
+	prev, next := -1, -1
+	for i := range runes {
+		if times[i] >= 0 {
+			prev = i
+			continue
+		}
+		if !unicode.IsLetter(runes[i]) && !unicode.IsDigit(runes[i]) {
+			if prev >= 0 {
+				times[i] = times[prev]
 			}
 			continue
 		}
-		if i+1 < m {
-			out[i].end = out[i+1].start
-		} else {
-			out[i].end = duration
+		next = -1
+		for j := i + 1; j < len(runes); j++ {
+			if times[j] >= 0 {
+				next = j
+				break
+			}
 		}
-		if out[i].end <= out[i].start {
-			out[i].end = math.Min(duration, out[i].start+2)
+		switch {
+		case prev >= 0 && next >= 0:
+			times[i] = times[prev] + (times[next]-times[prev])*float64(i-prev)/float64(next-prev)
+		case prev >= 0:
+			times[i] = times[prev] + (sp.end-times[prev])/float64(max(1, len(runes)-1-prev))
+		case next >= 0:
+			times[i] = sp.start
+		default:
+			times[i] = sp.start
 		}
 	}
-	return out
+	for i := 1; i < len(times); i++ {
+		if times[i] < times[i-1] {
+			times[i] = times[i-1]
+		}
+	}
+	if len(times) > 0 && times[0] < 0 {
+		times[0] = sp.start
+		for i := 1; i < len(times); i++ {
+			if times[i] < 0 {
+				times[i] = times[i-1]
+			}
+		}
+	}
+	return times
 }
 
-func similarity(a, b string) float64 {
-	left, right := []rune(compact(a)), []rune(compact(b))
-	if len(left) < 2 || len(right) < 2 {
-		return 0
+func spreadSpans(lines []Line, duration float64) []span {
+	out := make([]span, len(lines))
+	if len(lines) == 0 {
+		return out
 	}
-	grams := make(map[string]bool, len(left))
-	for i := 0; i+1 < len(left); i++ {
-		grams[string(left[i:i+2])] = true
+	step := duration / float64(len(lines))
+	for i := range out {
+		out[i] = span{start: round(step * float64(i)), end: round(step * float64(i+1))}
 	}
-	hits := 0
-	for i := 0; i+1 < len(right); i++ {
-		if grams[string(right[i:i+2])] {
-			hits++
-		}
-	}
-	return float64(hits) / float64(len(right)-1)
+	return out
 }
 
 func compact(s string) string {

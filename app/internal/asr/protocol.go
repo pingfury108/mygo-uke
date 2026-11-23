@@ -295,6 +295,17 @@ type Utterance struct {
 	StartMS  float64
 	EndMS    float64
 	Definite bool
+	Words    []Word
+}
+
+// Word is one token inside an utterance. Chinese models usually return one
+// character per token, which gives much better karaoke timing than dividing
+// the whole sentence evenly.
+type Word struct {
+	Text          string
+	StartMS       float64
+	EndMS         float64
+	BlankDuration float64
 }
 
 // ParseServerFrame 解析服务端帧。
@@ -334,6 +345,12 @@ func ParseServerFrame(raw []byte) ServerFrame {
 					StartTime float64 `json:"start_time"`
 					EndTime   float64 `json:"end_time"`
 					Definite  bool    `json:"definite"`
+					Words     []struct {
+						Text          string  `json:"text"`
+						StartTime     float64 `json:"start_time"`
+						EndTime       float64 `json:"end_time"`
+						BlankDuration float64 `json:"blank_duration"`
+					} `json:"words"`
 				} `json:"utterances"`
 			} `json:"result"`
 		}
@@ -342,11 +359,21 @@ func ParseServerFrame(raw []byte) ServerFrame {
 		}
 		utterances := make([]Utterance, 0, len(parsed.Result.Utterances))
 		for _, item := range parsed.Result.Utterances {
+			words := make([]Word, 0, len(item.Words))
+			for _, word := range item.Words {
+				words = append(words, Word{
+					Text:          word.Text,
+					StartMS:       word.StartTime,
+					EndMS:         word.EndTime,
+					BlankDuration: word.BlankDuration,
+				})
+			}
 			utterances = append(utterances, Utterance{
 				Text:     strings.TrimSpace(item.Text),
 				StartMS:  item.StartTime,
 				EndMS:    item.EndTime,
 				Definite: item.Definite,
+				Words:    words,
 			})
 		}
 		return ServerFrame{

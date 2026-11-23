@@ -159,7 +159,7 @@ func (a *app) chordModal(c *ui.Context) {
 					for _, name := range bar.Candidates {
 						candidate := name
 						b := ui.ButtonBase(c).Height(28).Radius(7).Center().Label(candidate).FocusRing(false).
-							Background(pal.card).Border(1, pal.line)
+							Background(pal.card).Border(1, pal.line).Tooltip(chordTooltip(candidate))
 						if b.Hovered() {
 							b.Background(pal.warnBG)
 						}
@@ -185,7 +185,8 @@ func (a *app) chordModal(c *ui.Context) {
 				} {
 					chord := name
 					on := a.chordChoice == chord
-					b := ui.ButtonBase(c).Height(34).Radius(7).Center().Label(chord).FocusRing(false)
+					b := ui.ButtonBase(c).Height(34).Radius(7).Center().Label(chord).FocusRing(false).
+						Tooltip(chordTooltip(chord))
 					if on {
 						b.Background(pal.accent)
 					} else {
