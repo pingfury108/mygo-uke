@@ -45,6 +45,18 @@ func (a *app) seekPlayer() {
 	}
 }
 
+// seekTo pauses and moves the video to t, keeping the subtitle and bar
+// selections in step.
+func (a *app) seekTo(t float64) {
+	a.playhead = t
+	a.playing = false
+	if a.player != nil {
+		a.player.Pause()
+	}
+	a.seekPlayer()
+	a.syncSelection()
+}
+
 func (a *app) position() time.Duration {
 	return time.Duration(a.playhead * float64(time.Second))
 }

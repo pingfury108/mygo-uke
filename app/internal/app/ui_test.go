@@ -224,6 +224,51 @@ func TestInspectorRevealsSelectedLine(t *testing.T) {
 	}
 }
 
+func TestInspectorFooterStaysFixed(t *testing.T) {
+	a := newApp()
+	for i := 0; i < 30; i++ {
+		start := 80 + float64(i)*3
+		a.proj.Lines = append(a.proj.Lines, project.Line{
+			Start: start,
+			End:   start + 2.8,
+			Text:  "长视频字幕",
+		})
+	}
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	before, ok := tt.Find("民谣基础")
+	if !ok {
+		t.Fatal("subtitle footer missing")
+	}
+	a.inspectorScroll[0].Y = 600
+	tt.Frame()
+	after, ok := tt.Find("民谣基础")
+	if !ok {
+		t.Fatal("subtitle footer scrolled away")
+	}
+	if before.Y != after.Y {
+		t.Fatalf("subtitle footer moved from %.1f to %.1f", before.Y, after.Y)
+	}
+}
+
+func TestSubtitleClickSeeks(t *testing.T) {
+	a := newApp()
+	a.playing = true
+	line := a.proj.Lines[2]
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if err := tt.Click(line.Text); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.playhead != line.Start {
+		t.Fatalf("playhead = %.1f, want %.1f", a.playhead, line.Start)
+	}
+	if a.playing {
+		t.Fatal("clicking a subtitle did not pause playback")
+	}
+}
+
 func TestChordToolbarStaysFixed(t *testing.T) {
 	a := newApp()
 	a.tab = 1
@@ -250,6 +295,51 @@ func TestChordToolbarStaysFixed(t *testing.T) {
 	tt.Frame()
 	if a.inspectorScroll[1].Y <= 0 {
 		t.Fatalf("bar list did not scroll to current bar: Y = %.1f", a.inspectorScroll[1].Y)
+	}
+}
+
+func TestChordClickSeeksAndFooterStaysFixed(t *testing.T) {
+	a := newApp()
+	a.tab = 1
+	a.inspectorScroll[1].Y = 600
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	before, ok := tt.Find("编辑当前小节")
+	if !ok {
+		t.Fatal("chord footer missing")
+	}
+	a.inspectorScroll[1].Y = 900
+	tt.Frame()
+	after, ok := tt.Find("编辑当前小节")
+	if !ok {
+		t.Fatal("chord footer scrolled away")
+	}
+	if before.Y != after.Y {
+		t.Fatalf("chord footer moved from %.1f to %.1f", before.Y, after.Y)
+	}
+
+	a.inspectorScroll[1].Y = 0
+	bar := a.proj.Bars[2]
+	tt.Frame()
+	if err := tt.Click(timeText(bar.Start)); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.playhead != bar.Start {
+		t.Fatalf("playhead = %.1f, want %.1f", a.playhead, bar.Start)
+	}
+	if a.playing {
+		t.Fatal("clicking a bar did not pause playback")
+	}
+	if a.modal != modalNone {
+		t.Fatal("single click opened the chord editor")
+	}
+	if err := tt.Click("编辑当前小节"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.modal != modalChords || a.chordBar != 2 {
+		t.Fatalf("modal = %v, chordBar = %d", a.modal, a.chordBar)
 	}
 }
 
