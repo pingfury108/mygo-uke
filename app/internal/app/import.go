@@ -11,9 +11,9 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
-	"mygo-uke/internal/chordd"
 	"mygo-uke/internal/pipeline"
 	"mygo-uke/internal/project"
+	"mygo-uke/internal/sheet"
 )
 
 func (a *app) loadLibrary() {
@@ -38,9 +38,13 @@ func (a *app) projectItem(p *project.Project, path string, tone int) projectItem
 	if len(p.Chords) > 0 {
 		chord = p.Chords[0].Label
 	}
+	meta := fmt.Sprintf("%s · %s 调", timeText(p.Duration), p.Key)
+	if p.ChartName != "" {
+		meta += " · 有谱"
+	}
 	return projectItem{
 		title: p.Title,
-		meta:  fmt.Sprintf("%s · %s 调", timeText(p.Duration), p.Key),
+		meta:  meta,
 		state: "编辑中",
 		chord: chord,
 		tone:  tone % 3,
@@ -50,29 +54,7 @@ func (a *app) projectItem(p *project.Project, path string, tone int) projectItem
 }
 
 func (a *app) startImport() {
-	go func() {
-		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
-			Parent: a.win,
-			Title:  "导入弹唱视频",
-			Filters: []mygo.FileFilter{{
-				Name:       "视频或音频",
-				Extensions: []string{"mov", "mp4", "m4v", "mkv", "mp3", "m4a", "wav", "flac"},
-			}},
-		})
-		if err != nil {
-			mygo.RunOnMain(func() {
-				a.jobErr = err.Error()
-				a.jobStage = "失败"
-				a.modal = modalAnalysis
-				a.invalidate()
-			})
-			return
-		}
-		if len(paths) == 0 {
-			return
-		}
-		mygo.RunOnMain(func() { a.startAnalysis(paths[0], true) })
-	}()
+	a.openNewProject()
 }
 
 func (a *app) startReanalyze(c *ui.Context) {
@@ -80,18 +62,22 @@ func (a *app) startReanalyze(c *ui.Context) {
 		return
 	}
 	if a.proj == nil || a.proj.Source == "" {
-		a.toast(c, "无法重新分析", "这个工程没有源视频")
+		a.toast(c, "无法重新转写", "这个工程没有源视频")
+		return
+	}
+	if a.asrConfig.APIKey == "" {
+		a.toast(c, "无法重新转写", "先在设置里配置火山 ASR Key")
 		return
 	}
 	source := expandHome(a.proj.Source)
 	if _, err := os.Stat(source); err != nil {
-		a.toast(c, "无法重新分析", "示例工程没有源文件，请先导入视频")
+		a.toast(c, "无法重新转写", "示例工程没有源文件，请先导入视频")
 		return
 	}
-	a.startAnalysis(source, false)
+	a.startJob(source, false, sheet.FromProject(a.proj), chartOrigin{})
 }
 
-func (a *app) startAnalysis(source string, importing bool) {
+func (a *app) startJob(source string, importing bool, chart *sheet.Sheet, origin chartOrigin) {
 	if a.jobRunning {
 		return
 	}
@@ -100,6 +86,8 @@ func (a *app) startAnalysis(source string, importing bool) {
 	a.jobStage = "准备中"
 	a.jobImport = importing
 	a.jobSource = source
+	a.jobChart = chart
+	a.jobOrigin = origin
 	a.analysis = 0
 	a.modal = modalAnalysis
 	a.invalidate()
@@ -114,9 +102,9 @@ func (a *app) startAnalysis(source string, importing bool) {
 		built, path, err := pipeline.Import(
 			ctx,
 			source,
-			chordd.New(a.chorddURL),
 			pipeline.FFmpeg{},
 			transcriber,
+			chart,
 			project.Root(),
 			func(progress pipeline.Progress) {
 				mygo.RunOnMain(func() {
@@ -139,7 +127,7 @@ func (a *app) startAnalysis(source string, importing bool) {
 				built = project.Merge(a.proj, built)
 				if a.projPath != "" {
 					if saveErr := project.Save(a.projPath, built); saveErr != nil {
-						a.jobErr = "保存重新分析结果失败：" + saveErr.Error()
+						a.jobErr = "保存重新转写结果失败：" + saveErr.Error()
 						a.jobStage = "失败"
 						a.analysis = 0
 						a.invalidate()
@@ -151,16 +139,40 @@ func (a *app) startAnalysis(source string, importing bool) {
 					path = a.projPath
 				}
 			}
+			if importing && chart != nil {
+				warning := a.storeChartFor(built, path, origin)
+				if warning != "" {
+					built.Warnings = append(built.Warnings, warning)
+				}
+				if saveErr := project.Save(path, built); saveErr != nil {
+					a.jobErr = "保存曲谱失败：" + saveErr.Error()
+					a.jobStage = "失败"
+					a.analysis = 0
+					a.invalidate()
+					return
+				}
+			}
 			a.applyImported(built, path, importing)
 			a.analysis = 1
 			a.analysisAt = time.Now()
 			a.jobStage = "完成"
 			if len(built.Warnings) > 0 {
-				a.jobStage = "完成 · 字幕未识别"
+				a.jobStage = "完成 · 请检查提示"
+			}
+			if importing {
+				a.newVideo = ""
+				a.newChart = nil
+				a.newChartOrigin = chartOrigin{}
+				a.sheetPaste = ""
+				a.sheetMode = sheetForCurrent
 			}
 			a.invalidate()
 		})
 	}()
+}
+
+func (a *app) retryJob() {
+	a.startJob(a.jobSource, a.jobImport, a.jobChart, a.jobOrigin)
 }
 
 func (a *app) applyImported(p *project.Project, path string, importing bool) {
@@ -193,6 +205,7 @@ func (a *app) resetCursor() {
 	a.revealBar = -1
 	a.chordCursor = -1
 	a.resetInspectorScroll()
+	a.resetChartThumb()
 	a.pattern = patternIndex(a.proj.Pattern)
 	if len(a.proj.Chords) > 0 {
 		a.chordChoice = a.proj.Chords[0].Label

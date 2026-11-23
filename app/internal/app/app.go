@@ -10,9 +10,9 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"mygo-uke/internal/asr"
-	"mygo-uke/internal/chordd"
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/score"
+	"mygo-uke/internal/sheet"
 )
 
 type modalKind int
@@ -25,6 +25,8 @@ const (
 	modalLine
 	modalSettings
 	modalProject
+	modalSheet
+	modalNewProject
 )
 
 // app is the state every view reads and changes. It lives on the main
@@ -78,22 +80,34 @@ type app struct {
 	jobStage   string
 	jobImport  bool
 	jobSource  string
+	jobChart   *sheet.Sheet
+	jobOrigin  chartOrigin
 	analysisAt time.Time
 
-	chorddURL      string
-	chorddOnline   bool
-	chorddChecked  bool
-	chorddAnalyzer string
-	asrConfig      asr.Config
-	settings       settings
-	settingsDraft  settings
-	settingsErr    string
-	chorddWake     chan struct{}
+	asrConfig     asr.Config
+	settings      settings
+	settingsDraft settings
+	settingsErr   string
 
 	projectIndex   int
 	projectTitle   string
 	projectErr     string
 	projectConfirm bool
+
+	sheetRunning  bool
+	sheetErr      string
+	sheetNote     string
+	sheetPaste    string
+	sheetTab      int
+	sheetMode     int
+	sheetSeq      int
+	sheetCancel   context.CancelFunc
+	chartThumb    ui.ImageSource
+	chartThumbKey string
+
+	newVideo       string
+	newChart       *sheet.Sheet
+	newChartOrigin chartOrigin
 }
 
 // Run starts the native MyGo window.
@@ -116,15 +130,41 @@ func Run() error {
 			Content:              ui.View(a.view),
 		})
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) {
-			if len(e.Paths) > 0 {
-				a.startAnalysis(e.Paths[0], true)
+			if len(e.Paths) == 0 {
+				return
+			}
+			video, chart := "", ""
+			for _, path := range e.Paths {
+				switch {
+				case isVideoFile(path) && video == "":
+					video = path
+				case isSheetImage(path) && chart == "":
+					chart = path
+				}
+			}
+			if video != "" {
+				if a.modal != modalNewProject {
+					a.openNewProject()
+				}
+				a.newVideo = video
+				if chart != "" {
+					a.startSheetImage(chart)
+				}
+				return
+			}
+			if chart != "" {
+				if a.modal != modalNewProject {
+					a.openSheetModal()
+				}
+				a.startSheetImage(chart)
+				return
 			}
 		})
 		a.win.OnClose(func(*mygo.CloseEvent) {
 			a.closePlayer()
 			a.cancelExport()
+			a.cancelSheet()
 		})
-		a.watchChordd()
 	})
 	return mygo.App.Run()
 }
@@ -142,64 +182,22 @@ func newApp() *app {
 		revealLine:   -1,
 		revealBar:    -1,
 		chordCursor:  -1,
-		chorddURL:    s.ChorddURL,
 		exportSRT:    false,
 		asrConfig:    s.asrConfig(),
 		settings:     s,
-		chorddWake:   make(chan struct{}, 1),
 	}
 }
 
-func chorddBaseURL() string {
-	if url := os.Getenv("MYGO_UKE_CHORDD"); url != "" {
-		return url
-	}
-	return "http://MiWiFi-R1350-srv.local:8790"
-}
+const (
+	sheetForCurrent = iota
+	sheetForNew
+)
 
 func envOr(name, fallback string) string {
 	if value := os.Getenv(name); value != "" {
 		return value
 	}
 	return fallback
-}
-
-// watchChordd keeps the rail's service indicator honest. Network work stays
-// off the main thread; only the state write comes back to it.
-func (a *app) watchChordd() {
-	go func() {
-		for {
-			var baseURL string
-			mygo.RunOnMain(func() { baseURL = a.chorddURL })
-			client := chordd.New(baseURL)
-			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-			health, err := client.Check(ctx)
-			cancel()
-			mygo.RunOnMain(func() {
-				if baseURL != a.chorddURL {
-					return
-				}
-				a.chorddChecked = true
-				a.chorddOnline = err == nil
-				a.chorddAnalyzer = health.Analyzer
-				if a.win != nil {
-					a.win.Invalidate()
-				}
-			})
-			select {
-			case <-time.After(20 * time.Second):
-			case <-a.chorddWake:
-			}
-		}
-	}()
-}
-
-func (a *app) refreshChordd() {
-	select {
-	case a.chorddWake <- struct{}{}:
-	default:
-	}
-	a.invalidate()
 }
 
 func (a *app) view(c *ui.Context) {
@@ -230,17 +228,33 @@ func (a *app) view(c *ui.Context) {
 		a.settingsModal(c)
 	case modalProject:
 		a.projectModal(c)
+	case modalSheet:
+		a.sheetModal(c)
+	case modalNewProject:
+		a.newProjectModal(c)
 	}
 }
 
 func (a *app) handleKeys(c *ui.Context) {
 	if a.modal != modalNone {
 		if c.Shortcut(0, ui.KeyEscape) {
-			a.modal = modalNone
+			if a.modal == modalSheet || a.modal == modalNewProject {
+				a.closeSheet()
+			} else {
+				a.modal = modalNone
+			}
+		}
+		if (a.modal == modalSheet || a.modal == modalNewProject) &&
+			!c.FocusTakesText() && c.Shortcut(ui.Cmd, ui.KeyV) {
+			a.pasteSheetClipboard()
 		}
 		return
 	}
 	if !c.FocusTakesText() {
+		if c.Shortcut(ui.Cmd, ui.KeyV) {
+			a.openSheetModal()
+			a.pasteSheetClipboard()
+		}
 		if c.Shortcut(0, ui.KeySpace) || c.Shortcut(0, ui.KeyK) {
 			a.togglePlay()
 		}
@@ -368,6 +382,40 @@ func (a *app) lineAt(t float64) (project.Line, int, bool) {
 
 func (a *app) barAt(t float64) (score.Bar, int, bool) {
 	return score.BarAt(a.proj.Bars, t)
+}
+
+func (a *app) currentChord() (string, bool) {
+	if a.proj == nil {
+		return "", false
+	}
+	if segment, _, ok := score.ChordAt(a.proj.Chords, a.playhead); ok {
+		return segment.Label, true
+	}
+	return "", false
+}
+
+func (a *app) upcomingChords(n int) []string {
+	if a.proj == nil || n <= 0 {
+		return nil
+	}
+	segment, index, ok := score.ChordAt(a.proj.Chords, a.playhead)
+	if !ok {
+		index = len(a.proj.Chords) - 1
+		for i, item := range a.proj.Chords {
+			if item.Start >= a.playhead {
+				index = i - 1
+				break
+			}
+		}
+	}
+	var out []string
+	for i := index + 1; i < len(a.proj.Chords) && len(out) < n; i++ {
+		if segment.Label != "" && a.proj.Chords[i].Label == segment.Label {
+			continue
+		}
+		out = append(out, a.proj.Chords[i].Label)
+	}
+	return out
 }
 
 func (a *app) save() {

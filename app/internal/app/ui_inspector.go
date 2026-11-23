@@ -135,7 +135,7 @@ func (a *app) subtitleList(c *ui.Context) {
 	if len(a.proj.Lines) == 0 {
 		ui.Row(c).Padding(9, 10, 9, 10).Radius(8).Background(pal.card).
 			Children(func() {
-				text(c, "还没有字幕：点「添加」手填，或配置火山 Key 后重新分析", 9, pal.faint)
+				text(c, "还没有字幕：点「添加」手填，或配置火山 Key 后重新转写", 9, pal.faint)
 			})
 	}
 	if a.revealLine >= len(a.proj.Lines) {
@@ -170,6 +170,9 @@ func (a *app) subtitleList(c *ui.Context) {
 		card.Children(func() {
 			ui.Column(c).FillWidth().Gap(3).Children(func() {
 				mono(c, fmt.Sprintf("%s — %s", timeText(l.Start), timeText(l.End)), 8.5, pal.faint)
+				if chords := lineChordText(a.proj.LineChordSpans(index)); chords != "—" {
+					mono(c, chords, 9, pal.accent).SingleLine()
+				}
 				label(c, l.Text, 12, pal.text, 500)
 				ui.Row(c).Gap(10).Children(func() {
 					text(c, "点卡片跳转 · 双击编辑", 9, pal.muted)
@@ -231,9 +234,9 @@ func (a *app) subtitleFooter(c *ui.Context) {
 
 func (a *app) chordHeader(c *ui.Context) {
 	bar, index, ok := a.barAt(a.playhead)
-	current := "—"
-	if ok && len(bar.Chords) > 0 {
-		current = bar.Chords[0]
+	current := a.currentChordLabel(bar)
+	if current == "" {
+		current = "—"
 	}
 	ui.Column(c).Padding(7, 14, 7, 14).Gap(5).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -336,9 +339,9 @@ func (a *app) chordBars(c *ui.Context) {
 
 func (a *app) chordFooter(c *ui.Context) {
 	bar, index, ok := a.barAt(a.playhead)
-	current := "—"
-	if ok && len(bar.Chords) > 0 {
-		current = bar.Chords[0]
+	current := a.currentChordLabel(bar)
+	if current == "" {
+		current = "—"
 	}
 	ui.Box(c).Height(1).FillWidth().Background(pal.line)
 	ui.Column(c).Padding(7, 14, 7, 14).Gap(5).Children(func() {
@@ -473,7 +476,7 @@ func (a *app) styleTab(c *ui.Context) {
 
 	sectionLabel(c, "工程", "project.json")
 	ui.Column(c).Padding(9, 10, 9, 10).Radius(7).Gap(3).Background(pal.card).Children(func() {
-		mono(c, fmt.Sprintf("%.2fs · %.0f BPM", a.proj.Duration, a.proj.Tempo), 9, pal.muted)
+		mono(c, fmt.Sprintf("%.2fs · %s", a.proj.Duration, bpmText(a.proj)), 9, pal.muted)
 		mono(c, fmt.Sprintf("%d bars · %d lines", len(a.proj.Bars), len(a.proj.Lines)), 9, pal.faint)
 		asrState := "未配置"
 		if a.asrConfig.APIKey != "" {

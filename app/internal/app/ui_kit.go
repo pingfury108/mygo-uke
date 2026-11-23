@@ -1,6 +1,12 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"fmt"
+
+	"github.com/egoist/mygo/ui"
+
+	"mygo-uke/internal/project"
+)
 
 func text(c *ui.Context, s string, size float32, color ui.Color) ui.Element {
 	return ui.Text(c, s).FontSize(size).TextColor(color)
@@ -43,6 +49,21 @@ func ghostButton(c *ui.Context, textValue string, onClick func()) ui.Element {
 	}
 	b.Children(func() {
 		text(c, textValue, 10, pal.muted)
+	})
+	return b
+}
+
+func railAction(c *ui.Context, textValue string, onClick func()) ui.Element {
+	b := ui.ButtonBase(c).Height(26).Grow(1).Center().Radius(7).
+		Background(pal.card).Border(1, pal.line).Label(textValue).FocusRing(false)
+	if b.Hovered() {
+		b.Background(pal.sel)
+	}
+	if onClick != nil {
+		b.OnClick(onClick)
+	}
+	b.Children(func() {
+		text(c, textValue, 9.5, pal.text).SingleLine()
 	})
 	return b
 }
@@ -133,4 +154,11 @@ func iconButton(c *ui.Context, glyph, labelText string, onClick func()) ui.Eleme
 		text(c, glyph, 15, pal.muted)
 	})
 	return b
+}
+
+func bpmText(p *project.Project) string {
+	if p == nil || p.Tempo <= 0 {
+		return "— BPM"
+	}
+	return fmt.Sprintf("%.0f BPM", p.Tempo)
 }

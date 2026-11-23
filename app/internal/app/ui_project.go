@@ -3,6 +3,7 @@ package app
 import (
 	"strings"
 
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"mygo-uke/internal/project"
@@ -26,7 +27,7 @@ func (a *app) projectModal(c *ui.Context) {
 	if a.projectIndex >= 0 && a.projectIndex < len(a.projects) {
 		item = a.projects[a.projectIndex]
 	}
-	detail := "重命名只改工程标题，重新分析会保留字幕与手动和弦"
+	detail := "重命名只改工程标题，重新转写会保留字幕与手动和弦"
 	if a.projectErr != "" {
 		detail = a.projectErr
 	}
@@ -41,6 +42,23 @@ func (a *app) projectModal(c *ui.Context) {
 			if item.path != "" {
 				mono(c, item.path, 8.5, pal.faint).SingleLine()
 			}
+			if a.proj != nil && a.proj.ChartName != "" {
+				path := a.chartPath()
+				ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
+					AlignItems(ui.Center).Gap(8).Children(func() {
+					text(c, "曲谱", 10, pal.muted).Width(42)
+					ui.Column(c).Grow(1).Children(func() {
+						mono(c, a.proj.ChartName, 9.5, pal.text).SingleLine()
+					})
+					if path != "" {
+						ghostButton(c, "预览", func() { _ = mygo.Shell.PreviewItem(path) })
+					}
+					ghostButton(c, "更换", func() {
+						a.modal = modalNone
+						a.openSheetModal()
+					})
+				})
+			}
 			if a.projectConfirm {
 				ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
 					AlignItems(ui.Center).Children(func() {
@@ -53,7 +71,7 @@ func (a *app) projectModal(c *ui.Context) {
 					ghostButton(c, "删除", func() { a.deleteProject(c) })
 				}
 				if item.data != nil {
-					ghostButton(c, "重新分析", func() { a.reanalyzeProject(c) })
+					ghostButton(c, "重新转写", func() { a.reanalyzeProject(c) })
 				}
 				ghostButton(c, "取消", func() { a.modal = modalNone })
 				primaryButton(c, "保存名称", func() { a.saveProjectTitle(c) })
@@ -93,7 +111,7 @@ func (a *app) saveProjectTitle(c *ui.Context) {
 
 func (a *app) reanalyzeProject(c *ui.Context) {
 	if a.jobRunning {
-		a.projectErr = "已有分析任务在运行"
+		a.projectErr = "已有转写任务在运行"
 		return
 	}
 	if a.projectIndex < 0 || a.projectIndex >= len(a.projects) {

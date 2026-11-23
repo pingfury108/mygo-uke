@@ -30,7 +30,7 @@ func (a *app) titlebar(c *ui.Context) {
 			text(c, "已保存", 9, pal.muted)
 		})
 		ui.Box(c).Grow(1)
-		flatButton(c, "重新分析", func() { a.startReanalyze(c) })
+		flatButton(c, "重新转写", func() { a.startReanalyze(c) })
 		segment(c, []string{"竖屏", "横屏"}, &a.orientation)
 		primaryButton(c, "导出成片", func() {
 			a.exportProgress = 0
@@ -50,7 +50,9 @@ func (a *app) rail(c *ui.Context) {
 		ui.Row(c).Padding(2, 5, 10, 5).AlignItems(ui.Center).Children(func() {
 			label(c, "工程", 10, pal.muted, 650)
 			ui.Box(c).Grow(1)
-			iconButton(c, "+", "导入视频", a.startImport)
+		})
+		ui.Row(c).Gap(6).Padding(0, 5, 10, 5).Children(func() {
+			railAction(c, "+ 新建工程", a.startImport)
 		})
 		for i := range a.projects {
 			index := i
@@ -58,35 +60,18 @@ func (a *app) rail(c *ui.Context) {
 		}
 		ui.Box(c).Grow(1)
 		ui.Box(c).Height(1).FillWidth().Background(pal.line)
-		ui.Column(c).Padding(10, 0, 0, 0).Gap(8).Children(func() {
-			a.chorddState(c)
-			apiState(c, pal.warn, fmt.Sprintf("%d 个和弦待确认", a.reviewBars()))
+		ui.Column(c).Padding(10, 0, 0, 0).Children(func() {
 			b := ui.ButtonBase(c).FillWidth().Height(22).Padding(0, 2, 0, 2).
-				Justify(ui.Start).Label("设置与 API Key").FocusRing(false)
+				Justify(ui.Start).Label("设置").FocusRing(false)
 			if b.Hovered() {
 				b.Background(pal.sel)
 			}
 			b.OnClick(func() { a.openSettings() })
 			b.Children(func() {
-				text(c, "设置与 API Key", 10, pal.muted)
+				text(c, "设置", 10, pal.muted)
 			})
 		})
 	})
-}
-
-func (a *app) chorddState(c *ui.Context) {
-	color := pal.faint
-	value := "chordd 检查中…"
-	switch {
-	case !a.chorddChecked:
-	case a.chorddOnline:
-		color = pal.good
-		value = "chordd 在线 · " + a.chorddAnalyzer
-	default:
-		color = pal.warn
-		value = "chordd 离线 · 自动重试"
-	}
-	apiState(c, color, value)
 }
 
 func (a *app) projectRow(c *ui.Context, index int) {
@@ -177,13 +162,9 @@ func projectThumb(c *ui.Context, item projectItem) {
 			Center: ui.Point{X: 0.7, Y: 0.18},
 		}, 7)
 		p.Text(r.X+r.W-19, r.Y+r.H-5, chord, 9, ui.RGBA(255, 248, 232, 0.82))
-	})
-}
-
-func apiState(c *ui.Context, color ui.Color, value string) {
-	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-		dot(c, color)
-		text(c, value, 9, pal.muted).SingleLine()
+		if item.data != nil && item.data.ChartName != "" {
+			p.Fill(ui.Rect{X: r.X + r.W - 10, Y: r.Y + 6, W: 6, H: 6}, pal.accent, 3)
+		}
 	})
 }
 
@@ -212,15 +193,18 @@ func (a *app) analysisText() string {
 	age := time.Since(a.analysisAt)
 	switch {
 	case age < time.Minute:
-		return "分析完成 · 刚刚"
+		return "转写完成 · 刚刚"
 	case age < time.Hour:
-		return fmt.Sprintf("分析完成 · %d 分钟前", int(age.Minutes()))
+		return fmt.Sprintf("转写完成 · %d 分钟前", int(age.Minutes()))
 	default:
-		return "分析完成 · " + a.analysisAt.Format("01-02 15:04")
+		return "转写完成 · " + a.analysisAt.Format("01-02 15:04")
 	}
 }
 
 func (a *app) reviewBars() int {
+	if a.proj != nil && a.proj.HasChartChords() {
+		return 0
+	}
 	n := 0
 	for _, b := range a.proj.Bars {
 		if b.NeedsReview {

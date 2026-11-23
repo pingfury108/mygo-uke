@@ -6,39 +6,16 @@ import (
 	"path/filepath"
 	"testing"
 
-	"mygo-uke/internal/chordd"
 	"mygo-uke/internal/project"
+	"mygo-uke/internal/sheet"
 )
 
 type fakeMedia struct{}
 
 func (fakeMedia) Duration(context.Context, string) (float64, error) { return 100, nil }
 
-func (fakeMedia) ExtractAudio(_ context.Context, _, destination string) error {
-	return os.WriteFile(destination, []byte("audio"), 0o600)
-}
-
 func (fakeMedia) ExtractPCM(_ context.Context, _, destination string) error {
 	return os.WriteFile(destination, []byte("pcm"), 0o600)
-}
-
-type fakeAnalyzer struct{}
-
-func (fakeAnalyzer) Analyze(
-	_ context.Context, _ string, _ float64, progress func(float64),
-) (chordd.Result, error) {
-	progress(0.5)
-	return chordd.Result{
-		Tempo:         68,
-		TimeSignature: [2]int{4, 4},
-		Key:           "C",
-		Beats:         []float64{0, 0.9, 1.8, 2.7},
-		Downbeats:     []float64{0, 3.6, 7.2},
-		Chords: []chordd.Chord{
-			{Start: 0, End: 3.6, Label: "C", Conf: 0.9},
-			{Start: 3.6, End: 7.2, Label: "G", Conf: 0.8},
-		},
-	}, nil
 }
 
 type fakeTranscriber struct {
@@ -58,7 +35,7 @@ func (f fakeTranscriber) Transcribe(
 	}, nil
 }
 
-func TestImportBuildsAndSavesProject(t *testing.T) {
+func TestImportBuildsSubtitlesWithoutAudioChordAnalysis(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "夏夜来信.mov")
 	if err := os.WriteFile(source, []byte("video"), 0o600); err != nil {
 		t.Fatal(err)
@@ -67,18 +44,17 @@ func TestImportBuildsAndSavesProject(t *testing.T) {
 	var stages []string
 
 	built, path, err := Import(
-		context.Background(), source, fakeAnalyzer{}, fakeMedia{},
-		fakeTranscriber{}, root,
+		context.Background(), source, fakeMedia{}, fakeTranscriber{}, nil, root,
 		func(progress Progress) { stages = append(stages, progress.Stage) },
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if built.Title != "夏夜来信" || built.Duration != 100 || built.Key != "C" {
+	if built.Title != "夏夜来信" || built.Duration != 100 {
 		t.Fatalf("project = %+v", built)
 	}
-	if len(built.Chords) != 2 || len(built.Bars) == 0 {
-		t.Fatalf("chords = %d bars = %d", len(built.Chords), len(built.Bars))
+	if len(built.Chords) != 0 {
+		t.Fatalf("audio analysis leaked chords: %+v", built.Chords)
 	}
 	if len(built.Lines) != 2 || built.Lines[1].Text != "第二句" {
 		t.Fatalf("lines = %+v", built.Lines)
@@ -91,25 +67,65 @@ func TestImportBuildsAndSavesProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.Title != "夏夜来信" || loaded.Chords[1].Label != "G" {
+	if loaded.Title != "夏夜来信" || len(loaded.Chords) != 0 {
 		t.Fatalf("loaded = %+v", loaded)
 	}
 }
 
-func TestImportKeepsChordsWhenASRFails(t *testing.T) {
+func TestImportAppliesChartAndBuildsBarsWithoutASR(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "song.mov")
 	if err := os.WriteFile(source, []byte("video"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	chart := &sheet.Sheet{
+		Key:           "C",
+		BPM:           120,
+		TimeSignature: [2]int{3, 4},
+		Lines: []sheet.Line{
+			{Lyrics: "第一句", Chords: []project.ChordMark{{At: 0, Label: "C"}}},
+			{Lyrics: "第二句", Chords: []project.ChordMark{{At: 0, Label: "Am"}, {At: 2, Label: "F"}}},
+		},
+	}
+
 	built, _, err := Import(
-		context.Background(), source, fakeAnalyzer{}, fakeMedia{},
-		fakeTranscriber{err: os.ErrDeadlineExceeded}, t.TempDir(), nil,
+		context.Background(), source, fakeMedia{}, nil, chart, t.TempDir(), nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(built.Chords) == 0 || len(built.Lines) != 0 {
-		t.Fatalf("chords=%d lines=%d", len(built.Chords), len(built.Lines))
+	if built.Key != "C" || built.Tempo != 120 || built.TimeSignature != [2]int{3, 4} {
+		t.Fatalf("chart metadata = key %q tempo %v meter %v", built.Key, built.Tempo, built.TimeSignature)
+	}
+	if len(built.Lines) != 2 {
+		t.Fatalf("lines = %+v", built.Lines)
+	}
+	if len(built.Chords) != 3 || built.Chords[0].Source != "chart" {
+		t.Fatalf("chords = %+v", built.Chords)
+	}
+	if len(built.Beats) == 0 || len(built.Downbeats) == 0 || len(built.Bars) == 0 {
+		t.Fatalf("grid = beats %d downbeats %d bars %d",
+			len(built.Beats), len(built.Downbeats), len(built.Bars))
+	}
+}
+
+func TestImportKeepsChartWhenASRFails(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "song.mov")
+	if err := os.WriteFile(source, []byte("video"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	chart := &sheet.Sheet{Lines: []sheet.Line{{
+		Lyrics: "第一句",
+		Chords: []project.ChordMark{{At: 0, Label: "C"}},
+	}}}
+	built, _, err := Import(
+		context.Background(), source, fakeMedia{}, fakeTranscriber{err: os.ErrDeadlineExceeded},
+		chart, t.TempDir(), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(built.Lines) != 1 || len(built.Chords) == 0 {
+		t.Fatalf("lines=%d chords=%d", len(built.Lines), len(built.Chords))
 	}
 	if len(built.Warnings) != 1 {
 		t.Fatalf("warnings = %v", built.Warnings)

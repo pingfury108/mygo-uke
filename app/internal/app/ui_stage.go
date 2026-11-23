@@ -3,9 +3,11 @@ package app
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/egoist/mygo/ui"
 
+	"mygo-uke/internal/project"
 	"mygo-uke/internal/render"
 	"mygo-uke/internal/score"
 	"mygo-uke/internal/uke"
@@ -20,6 +22,16 @@ func (a *app) overlayAccent() ui.Color {
 
 func (a *app) overlayInk() ui.Color {
 	return render.InkOn(a.proj.Style.Accent)
+}
+
+func (a *app) currentChordLabel(bar score.Bar) string {
+	if label, ok := a.currentChord(); ok {
+		return label
+	}
+	if len(bar.Chords) > 0 {
+		return bar.Chords[0]
+	}
+	return ""
 }
 
 func (a *app) stage(c *ui.Context) {
@@ -37,7 +49,10 @@ func (a *app) stageHead(c *ui.Context) {
 			p.Line(r.X, r.Y+r.H-0.5, r.X+r.W, r.Y+r.H-0.5, 1, pal.line)
 		}).Children(func() {
 		ui.Column(c).Gap(3).Children(func() {
-			label(c, a.proj.Title, 17, pal.text, 650)
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+				label(c, a.proj.Title, 17, pal.text, 650)
+				a.chartChip(c)
+			})
 			mono(c, metaLine(a.proj), 9.5, pal.muted)
 		})
 		ui.Box(c).Grow(1)
@@ -45,6 +60,11 @@ func (a *app) stageHead(c *ui.Context) {
 			badgeRow := ui.Row(c).Padding(4, 8, 4, 8).Radius(999).Background(pal.warnBG).
 				AlignItems(ui.Center).Gap(5)
 			badgeRow.Children(func() {
+				if a.proj.HasChartChords() {
+					label(c, "曲谱", 9.5, pal.text, 650)
+					text(c, "和弦来自曲谱", 9.5, pal.muted)
+					return
+				}
 				value := "—"
 				if confidence := a.avgConfidence(); confidence > 0 {
 					value = fmt.Sprintf("%.0f%%", confidence*100)
@@ -169,9 +189,9 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 		ui.Column(c).Absolute().Left(0).Top(0).Width(sideW).Height(h).
 			Padding(16, 14, 14, 14).Gap(6).Children(func() {
 			label(c, "当前和弦", 8.5, pal.muted, 600)
-			name := "—"
-			if len(bar.Chords) > 0 {
-				name = bar.Chords[0]
+			name := a.currentChordLabel(bar)
+			if name == "" {
+				name = "—"
 			}
 			label(c, name, 34, pal.text, 650)
 			mono(c, fmt.Sprintf("原调 %s · Capo %d", a.proj.Key, a.proj.Capo), 8.5, pal.muted)
@@ -198,7 +218,7 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 		ui.Column(c).Absolute().Right(0).Top(0).Width(rightW).Height(h).
 			Padding(16, 14, 14, 14).Gap(7).Children(func() {
 			label(c, a.proj.Title, 14, pal.text, 650).SingleLine()
-			mono(c, fmt.Sprintf("%.0f BPM · %d/%d · %s 调", a.proj.Tempo,
+			mono(c, fmt.Sprintf("%s · %d/%d · %s 调", bpmText(a.proj),
 				a.proj.TimeSignature[0], a.proj.TimeSignature[1], a.proj.Key), 8, pal.faint)
 			for i := lineIndex - 1; i <= lineIndex+2; i++ {
 				if i < 0 || i >= len(a.proj.Lines) {
@@ -210,15 +230,13 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 					row.Background(pal.warnBG)
 				}
 				row.Children(func() {
-					chords := "—"
-					if b, _, ok := a.barAt(item.Start); ok && len(b.Chords) > 0 {
-						chords = b.Chords[0]
-						if len(b.Chords) > 1 {
-							chords += "  " + b.Chords[1]
-						}
-					}
+					chords := lineChordText(a.proj.LineChordSpans(i))
 					mono(c, chords, 8.5, pal.accent)
-					text(c, item.Text, 10.5, pal.text).SingleLine()
+					value := item.Text
+					if i == lineIndex && a.playhead >= item.Start && a.playhead <= item.End {
+						value = item.TextAt(a.playhead)
+					}
+					text(c, value, 10.5, pal.text).SingleLine()
 				})
 			}
 			ui.Box(c).Grow(1)
@@ -227,12 +245,25 @@ func (a *app) horizontalFrame(c *ui.Context, w, h float32) {
 	})
 }
 
+func lineChordText(spans []project.ChordSpan) string {
+	var labels []string
+	for _, span := range spans {
+		if len(labels) == 0 || labels[len(labels)-1] != span.Label {
+			labels = append(labels, span.Label)
+		}
+	}
+	if len(labels) == 0 {
+		return "—"
+	}
+	return strings.Join(labels, "  ")
+}
+
 func (a *app) videoFrame(c *ui.Context, w, h float32) {
 	bar, _, ok := a.barAt(a.playhead)
 	if !ok && len(a.proj.Bars) > 0 {
 		bar = a.proj.Bars[0]
 	}
-	line, _, hasLine := a.lineAt(a.playhead)
+	line, lineIndex, hasLine := a.lineAt(a.playhead)
 
 	frame := ui.Box(c).Size(w, h).Radius(17).Clip().
 		Border(1, pal.frameLine).Background(ui.Hex("#171512")).
@@ -251,10 +282,10 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 	})
 	frame.Children(func() {
 		a.videoLayer(c, ui.Cover)
-		a.chordStrip(c, bar, w, h)
-		diagramCorner(c, bar, w, h, a.proj.Capo, a.overlayAccent())
-		if hasLine {
-			a.subtitleOverlay(c, line.Text, w, h)
+		a.chordStrip(c, w, h)
+		diagramCorner(c, a.currentChordLabel(bar), w, h, a.proj.Capo, a.overlayAccent())
+		if hasLine && a.playhead >= line.Start && a.playhead <= line.End {
+			a.subtitleOverlay(c, lineIndex, w, h)
 		}
 		if a.proj.Style.ShowSafe {
 			safeLabels(c, w, h)
@@ -326,16 +357,13 @@ func safeLabels(c *ui.Context, w, h float32) {
 	})
 }
 
-func (a *app) chordStrip(c *ui.Context, bar score.Bar, w, h float32) {
-	chords := bar.Chords
-	if len(chords) == 0 {
-		chords = []string{""}
+func (a *app) chordStrip(c *ui.Context, w, h float32) {
+	current, ok := a.currentChord()
+	chords := []string{""}
+	if ok {
+		chords = []string{current}
 	}
-	_, index, _ := a.barAt(a.playhead)
-	upcoming := []string{}
-	for i := index + 1; i < len(a.proj.Bars) && len(upcoming) < 2; i++ {
-		upcoming = append(upcoming, a.proj.Bars[i].Chords...)
-	}
+	upcoming := a.upcomingChords(2)
 	row := ui.Row(c).Absolute().LeftPercent(6.5).TopPercent(5.4).
 		Right(w*0.25 + 8).Gap(5).AlignItems(ui.Start)
 	row.Children(func() {
@@ -375,11 +403,7 @@ func (a *app) chordChip(c *ui.Context, chord string, current bool, h float32) {
 	})
 }
 
-func diagramCorner(c *ui.Context, bar score.Bar, w, h float32, capo int, accent ui.Color) {
-	labelValue := ""
-	if len(bar.Chords) > 0 {
-		labelValue = bar.Chords[0]
-	}
+func diagramCorner(c *ui.Context, labelValue string, w, h float32, capo int, accent ui.Color) {
 	chord, ok := uke.Normalize(labelValue)
 	var shape uke.Fingering
 	if ok {
@@ -440,27 +464,18 @@ func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color)
 	}
 }
 
-func (a *app) subtitleOverlay(c *ui.Context, value string, w, h float32) {
-	left := w * 0.111
-	right := w * 0.111
-	usable := w - left - right
-	size := float32(a.proj.Style.SubSize) * h / 1920
-	if size < h*0.018 {
-		size = h * 0.018
-	}
-	top := float32(a.proj.Style.SubtitleY) / 100
-	if top <= 0 {
-		top = 0.78
-	}
-	top = min(max(top, 0.5), 0.84)
-	ui.Box(c).Absolute().Left(left).Right(right).Top(h * top).
-		Center().Children(func() {
-		ui.Row(c).Padding(h*0.009, h*0.012, h*0.009, h*0.012).Radius(h * 0.007).
-			Background(ui.RGBA(10, 9, 8, 0.58)).Children(func() {
-			label(c, value, size, ui.Hex("#FFF8EA"), 600).
-				TextAlign(ui.Center).Width(usable - h*0.024)
+func (a *app) subtitleOverlay(c *ui.Context, lineIndex int, w, h float32) {
+	ui.Box(c).Absolute().Left(0).Top(0).Width(w).Height(h).
+		Draw(func(p *ui.Painter, r ui.Rect) {
+			render.DrawLyricOverlay(p, r, render.LyricOverlay{
+				Project:   a.proj,
+				LineIndex: lineIndex,
+				Time:      a.playhead,
+				Style:     a.proj.Style,
+				Accent:    a.overlayAccent(),
+				Ink:       ui.Hex("#FFF8EA"),
+			})
 		})
-	})
 }
 
 func (a *app) transport(c *ui.Context) {
@@ -476,7 +491,7 @@ func (a *app) transport(c *ui.Context) {
 		})
 		a.timeline(c)
 		ui.Column(c).Width(92).Gap(2).AlignItems(ui.End).Children(func() {
-			mono(c, fmt.Sprintf("%.0f BPM", a.proj.Tempo), 9.5, pal.muted)
+			mono(c, bpmText(a.proj), 9.5, pal.muted)
 			mono(c, fmt.Sprintf("%s 调 · Capo %d", a.proj.Key, a.proj.Capo), 9.5, pal.faint)
 			text(c, "民谣基础", 9.5, pal.faint)
 			mono(c, "Space · J/L", 8, pal.faint)

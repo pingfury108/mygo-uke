@@ -84,6 +84,9 @@ func TestMergeKeepsEdits(t *testing.T) {
 	edited.Style.Accent = "#B5482E"
 	edited.LinesEdited = true
 	edited.Lines = []Line{{Start: 0, End: 3, Text: "改过的字幕"}}
+	edited.ChartImage = "chart.png"
+	edited.ChartName = "曲谱.png"
+	edited.ChartAt = "2026-11-23T10:00:00+08:00"
 	edited.Bars = []score.Bar{
 		{Start: 0, End: 3, Chords: []string{"G"}, Manual: true},
 		{Start: 3, End: 6, Chords: []string{"Em"}},
@@ -103,6 +106,10 @@ func TestMergeKeepsEdits(t *testing.T) {
 	}
 	if merged.Style.Accent != "#B5482E" {
 		t.Fatalf("accent = %q", merged.Style.Accent)
+	}
+	if merged.ChartImage != "chart.png" || merged.ChartName != "曲谱.png" ||
+		merged.ChartAt != "2026-11-23T10:00:00+08:00" {
+		t.Fatalf("chart = %+v", merged)
 	}
 	if len(merged.Lines) != 1 || merged.Lines[0].Text != "改过的字幕" {
 		t.Fatalf("lines = %+v", merged.Lines)

@@ -37,29 +37,6 @@ func parseFFmpegDuration(output string) float64 {
 	return float64(hours*3600+minutes*60) + seconds
 }
 
-// ExtractAudio writes a 22.05kHz mono 128kbps mp3 for chordd.
-func ExtractAudio(ctx context.Context, source, destination string) error {
-	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
-		return err
-	}
-	_, err := run(
-		ctx,
-		FFmpegPath(),
-		"-nostdin",
-		"-hide_banner",
-		"-loglevel", "error",
-		"-y",
-		"-i", source,
-		"-map", "0:a:0",
-		"-vn",
-		"-ac", "1",
-		"-ar", "22050",
-		"-b:a", "128k",
-		destination,
-	)
-	return err
-}
-
 // ExtractPCM writes 16kHz mono signed 16-bit little-endian PCM for ASR.
 func ExtractPCM(ctx context.Context, source, destination string) error {
 	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {

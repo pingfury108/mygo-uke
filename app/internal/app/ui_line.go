@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -53,10 +54,16 @@ func (a *app) saveLine(c *ui.Context) {
 		c.AddToast(ui.Toast{Title: "时间不对", Description: "结束时间要晚于开始时间", Type: "error"})
 		return
 	}
-	line := project.Line{Start: start, End: end, Text: text}
+	var chords []project.ChordMark
+	if a.lineIndex >= 0 && a.lineIndex < len(a.proj.Lines) {
+		old := a.proj.Lines[a.lineIndex]
+		chords = remapChords(old.Text, text, old.Chords)
+	}
+	line := project.Line{Start: start, End: end, Text: text, Chords: chords}
 	a.selectedLine = a.proj.SetLine(a.lineIndex, line)
 	a.revealLine = a.selectedLine
 	a.proj.LinesEdited = true
+	a.proj.RebuildChartChords()
 	a.saveCurrent()
 	a.playhead = start
 	a.modal = modalNone
@@ -69,6 +76,7 @@ func (a *app) deleteLine(c *ui.Context) {
 		return
 	}
 	a.proj.LinesEdited = true
+	a.proj.RebuildChartChords()
 	if a.selectedLine >= len(a.proj.Lines) {
 		a.selectedLine = max(0, len(a.proj.Lines)-1)
 	}
@@ -76,6 +84,42 @@ func (a *app) deleteLine(c *ui.Context) {
 	a.saveCurrent()
 	a.modal = modalNone
 	a.toast(c, "字幕已删除", "")
+}
+
+func remapChords(oldText, newText string, chords []project.ChordMark) []project.ChordMark {
+	marks := project.CleanChordMarks(chords, oldText)
+	if len(marks) == 0 || oldText == newText {
+		return marks
+	}
+	oldRunes := []rune(oldText)
+	newRunes := []rune(newText)
+	if len(oldRunes) == 0 || len(newRunes) == 0 {
+		return project.CleanChordMarks(marks, newText)
+	}
+	prefix := 0
+	for prefix < len(oldRunes) && prefix < len(newRunes) && oldRunes[prefix] == newRunes[prefix] {
+		prefix++
+	}
+	suffix := 0
+	for suffix < len(oldRunes)-prefix && suffix < len(newRunes)-prefix &&
+		oldRunes[len(oldRunes)-1-suffix] == newRunes[len(newRunes)-1-suffix] {
+		suffix++
+	}
+	for i := range marks {
+		switch {
+		case marks[i].At < prefix:
+		case marks[i].At >= len(oldRunes)-suffix:
+			marks[i].At += len(newRunes) - len(oldRunes)
+		default:
+			oldSpan := len(oldRunes) - prefix - suffix
+			newSpan := len(newRunes) - prefix - suffix
+			if oldSpan > 0 {
+				marks[i].At = prefix + int(math.Round(float64(marks[i].At-prefix)*float64(newSpan)/float64(oldSpan)))
+			}
+		}
+		marks[i].Approx = true
+	}
+	return project.CleanChordMarks(marks, newText)
 }
 
 func clampLine(value, low, high float64) float64 {
@@ -99,7 +143,7 @@ func (a *app) lineModal(c *ui.Context) {
 	}
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(500).Gap(12).Children(func() {
-			modalTitle(c, title, "句级时间；保存后曲谱、预览和导出同时更新")
+			modalTitle(c, title, "逐字字幕按句内字符均分；新增/改字时会保留曲谱和弦位置")
 			ui.Column(c).Gap(4).Children(func() {
 				text(c, "字幕", 10, pal.muted)
 				ui.TextInput(c, &a.lineText).Placeholder("输入这一句歌词").Label("字幕").

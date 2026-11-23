@@ -79,7 +79,7 @@ func TestStudioInteractions(t *testing.T) {
 	if _, ok := tt.Find("开始导出"); !ok {
 		t.Fatal("export modal did not render")
 	}
-	if _, ok := tt.Find("已烧进画面 · 逐句"); !ok {
+	if _, ok := tt.Find("已烧进画面 · 逐字"); !ok {
 		t.Fatal("export modal did not explain burned-in subtitles")
 	}
 	if a.exportSRT {
@@ -378,8 +378,9 @@ func TestModalsRender(t *testing.T) {
 
 	a.modal = modalAnalysis
 	a.analysis = 0.5
+	a.jobRunning = true
 	tt.Frame()
-	if _, ok := tt.Find("分析工程"); !ok {
+	if _, ok := tt.Find("正在生成"); !ok {
 		t.Fatal("analysis modal did not render")
 	}
 
@@ -397,6 +398,29 @@ func TestModalsRender(t *testing.T) {
 	tt.Frame()
 	if _, ok := tt.Find("保存设置"); !ok {
 		t.Fatal("settings modal did not render")
+	}
+}
+
+func TestNewProjectModalRendersOneStepImport(t *testing.T) {
+	a := newApp()
+	a.openNewProject()
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if _, ok := tt.Find("新建工程"); !ok {
+		t.Fatal("new project modal did not render")
+	}
+	if _, ok := tt.Find("选择弹唱视频"); !ok {
+		t.Fatal("video picker missing")
+	}
+	if _, ok := tt.Find("创建工程"); !ok {
+		t.Fatal("create action missing")
+	}
+	if err := tt.Click("文本曲谱"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if _, ok := tt.Find("解析曲谱"); !ok {
+		t.Fatal("text chart parser missing")
 	}
 }
 

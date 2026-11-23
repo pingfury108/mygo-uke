@@ -43,6 +43,10 @@ type Project struct {
 	Bars          []score.Bar          `json:"bars"`
 	Lines         []Line               `json:"lines"`
 	LinesEdited   bool                 `json:"linesEdited,omitempty"`
+	ChartImage    string               `json:"chartImage,omitempty"`
+	ChartName     string               `json:"chartName,omitempty"`
+	ChartText     string               `json:"chartText,omitempty"`
+	ChartAt       string               `json:"chartAt,omitempty"`
 	Warnings      []string             `json:"warnings,omitempty"`
 	Pattern       string               `json:"pattern"`
 	Style         Style                `json:"style"`
@@ -50,11 +54,21 @@ type Project struct {
 
 // Line is one sentence of lyrics, with the time span ASR gave it.
 type Line struct {
-	Start       float64 `json:"start"`
-	End         float64 `json:"end"`
-	Text        string  `json:"text"`
-	Conf        float64 `json:"conf,omitempty"`
-	NeedsReview bool    `json:"needsReview,omitempty"`
+	Start       float64     `json:"start"`
+	End         float64     `json:"end"`
+	Text        string      `json:"text"`
+	Conf        float64     `json:"conf,omitempty"`
+	NeedsReview bool        `json:"needsReview,omitempty"`
+	Chords      []ChordMark `json:"chords,omitempty"`
+}
+
+// ChordMark is the point in a lyric line where a chord starts. The chord
+// lasts until the next mark (or the end of the last line), so several
+// characters can sit under one chord.
+type ChordMark struct {
+	At     int    `json:"at"`
+	Label  string `json:"label"`
+	Approx bool   `json:"approx,omitempty"`
 }
 
 // Style is the subset of overlay styling the P0 editor exposes.
@@ -196,9 +210,35 @@ func Merge(edited, built *Project) *Project {
 	built.Capo = edited.Capo
 	built.Pattern = edited.Pattern
 	built.Style = edited.Style
+	built.ChartImage = edited.ChartImage
+	built.ChartName = edited.ChartName
+	built.ChartText = edited.ChartText
+	built.ChartAt = edited.ChartAt
 	if edited.LinesEdited {
 		built.Lines = append([]Line(nil), edited.Lines...)
 		built.LinesEdited = true
+	}
+	hasChart := false
+	for _, segment := range edited.Chords {
+		if segment.Source == "chart" {
+			hasChart = true
+			break
+		}
+	}
+	for _, line := range edited.Lines {
+		if len(line.Chords) > 0 {
+			hasChart = true
+			break
+		}
+	}
+	if hasChart {
+		built.Chords = nil
+		for _, segment := range edited.Chords {
+			if segment.Source == "chart" {
+				built.Chords = append(built.Chords, segment)
+			}
+		}
+		built.RebuildChartChords()
 	}
 	for i := range built.Bars {
 		for _, bar := range edited.Bars {

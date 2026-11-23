@@ -51,7 +51,7 @@ func (a *app) exportModal(c *ui.Context) {
 			exportRow(c, "音频", "AAC 192k · 原视频音轨")
 			exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
 			exportRow(c, "预计耗时", a.exportEstimate())
-			exportRow(c, "字幕", "已烧进画面 · 逐句")
+			exportRow(c, "字幕", "已烧进画面 · 逐字")
 			if a.exportRunning || a.exportProgress > 0 {
 				value := "不额外写入"
 				if a.exportSRT {
@@ -249,34 +249,50 @@ func scoreBarAt(a *app, i int) score.Bar {
 
 func (a *app) analysisModal(c *ui.Context) {
 	open := true
-	title := "分析工程"
-	detail := "抽取音轨 → 和弦 / 字幕并行 → 小节"
+	title := "创建工程"
+	detail := "抽取音轨 → 语音转写 → 曲谱对齐 → 保存"
 	switch {
 	case a.jobErr != "":
-		title = "分析失败"
+		title = "导入失败"
 		detail = a.jobErr
 	case a.jobRunning:
-		title = "正在分析"
+		title = "正在生成"
 		detail = a.jobStage
 	case a.analysis >= 1:
-		title = "分析完成"
-		detail = "工程已保存，可以逐句校对"
+		if a.jobImport {
+			title = "工程已创建"
+			detail = "字幕、和弦与时间轴已经保存，可以逐字校对"
+		} else {
+			title = "转写完成"
+			detail = "工程已更新，可以继续校对"
+		}
 	}
 	ui.Modal(c, &open, func() {
 		ui.Column(c).Width(460).Gap(12).Children(func() {
 			modalTitle(c, title, detail)
-			stageRow(c, "1", "抽取音轨", "ffmpeg · 128k mono mp3", a.analysis >= 0.16, "")
+			stageRow(c, "1", "抽取音轨", "ffmpeg · 16k mono PCM", a.analysis >= 0.08, "")
 			asrDetail := "未配置 MYGO_UKE_VOLCANO_API_KEY · 跳过"
 			asrStatus := "跳过"
 			asrDone := false
 			if a.asrConfig.APIKey != "" {
 				asrDetail = "火山流式 ASR · 句级 utterances"
-				asrStatus = "并行"
+				asrStatus = "运行"
 				asrDone = a.analysis >= 1
 			}
 			stageRow(c, "2", "语音转写", asrDetail, asrDone, asrStatus)
-			stageRow(c, "3", "和弦分析", "BTC large-voca + beat_this", a.analysis >= 0.88, "")
-			stageRow(c, "4", "小节对齐", fmt.Sprintf("%d bars", len(a.proj.Bars)), a.analysis >= 1, "")
+			chartDetail := "未导入曲谱 · 跳过"
+			chartStatus := "跳过"
+			if a.jobChart != nil {
+				chartDetail = fmt.Sprintf("%d 行 · %d 个和弦", len(a.jobChart.Lines), chartChordCount(a.jobChart))
+				chartStatus = "等待"
+			}
+			chartDone := a.analysis >= 1
+			stageRow(c, "3", "曲谱对齐", chartDetail, chartDone, chartStatus)
+			bars := "保存后生成"
+			if a.analysis >= 1 {
+				bars = fmt.Sprintf("%d bars", len(a.proj.Bars))
+			}
+			stageRow(c, "4", "小节与工程", bars, a.analysis >= 1, "")
 			progress := a.analysis
 			ui.Column(c).Gap(5).Children(func() {
 				ui.Row(c).AlignItems(ui.Center).Children(func() {
@@ -292,10 +308,10 @@ func (a *app) analysisModal(c *ui.Context) {
 			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 				switch {
 				case a.jobRunning:
-					text(c, "分析中，先别关窗口…", 9.5, pal.faint)
+					text(c, "生成中，先别关窗口…", 9.5, pal.faint)
 				case a.jobErr != "":
 					ghostButton(c, "关闭", func() { a.modal = modalNone })
-					primaryButton(c, "重试", func() { a.startAnalysis(a.jobSource, a.jobImport) })
+					primaryButton(c, "重试", a.retryJob)
 				default:
 					ghostButton(c, "关闭", func() { a.modal = modalNone })
 					primaryButton(c, "完成", func() { a.modal = modalNone })

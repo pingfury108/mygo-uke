@@ -11,26 +11,15 @@ import (
 	"sync"
 
 	"mygo-uke/internal/asr"
-	"mygo-uke/internal/chordd"
 	"mygo-uke/internal/media"
 	"mygo-uke/internal/project"
 	"mygo-uke/internal/score"
+	"mygo-uke/internal/sheet"
 )
-
-// Analyzer is the chordd client method Import needs.
-type Analyzer interface {
-	Analyze(
-		ctx context.Context,
-		audioPath string,
-		duration float64,
-		progress func(float64),
-	) (chordd.Result, error)
-}
 
 // Media is the ffmpeg surface Import needs, so tests can avoid processes.
 type Media interface {
 	Duration(ctx context.Context, path string) (float64, error)
-	ExtractAudio(ctx context.Context, source, destination string) error
 	ExtractPCM(ctx context.Context, source, destination string) error
 }
 
@@ -76,13 +65,15 @@ type Progress struct {
 	Value float64
 }
 
-// Import extracts audio, waits for chordd, and saves a project.
+// Import extracts the ASR track, optionally aligns a chart, and saves a
+// project. Audio chord and beat analysis is intentionally not part of this
+// path: the printed chart is the source of truth for chords.
 func Import(
 	ctx context.Context,
 	source string,
-	analyzer Analyzer,
 	media Media,
 	transcriber Transcriber,
+	chart *sheet.Sheet,
 	root string,
 	report func(Progress),
 ) (*project.Project, string, error) {
@@ -105,66 +96,39 @@ func Import(
 		return nil, "", err
 	}
 	defer os.RemoveAll(work)
-	audio := filepath.Join(work, "audio.mp3")
 	pcm := filepath.Join(work, "asr.pcm")
 
-	send(report, "抽取音轨", 0.06)
-	if err := media.ExtractAudio(ctx, absolute, audio); err != nil {
-		return nil, "", err
-	}
 	if transcriber != nil {
+		send(report, "抽取音轨", 0.08)
 		if err := media.ExtractPCM(ctx, absolute, pcm); err != nil {
 			return nil, "", err
 		}
 	}
 
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	progress := &progressTracker{report: report}
-	type chordResult struct {
-		value chordd.Result
-		err   error
-	}
-	type lineResult struct {
-		value []project.Line
-		err   error
-	}
-	chords := make(chan chordResult, 1)
-	go func() {
-		result, err := analyzer.Analyze(runCtx, audio, duration, func(value float64) {
-			progress.send("分析和弦", 0.16+0.72*clamp(value))
-		})
-		chords <- chordResult{value: result, err: err}
-	}()
-	lines := make(chan lineResult, 1)
-	if transcriber == nil {
-		lines <- lineResult{}
-	} else {
-		go func() {
-			result, err := transcriber.Transcribe(
-				runCtx, pcm, duration,
-				func(value float64) {
-					progress.send("转写字幕", 0.16+0.72*clamp(value))
-				},
-			)
-			lines <- lineResult{value: result, err: err}
-		}()
-	}
-
-	chord := <-chords
-	if chord.err != nil {
-		cancel()
-		return nil, "", chord.err
-	}
-	line := <-lines
 	var warnings []string
-	if line.err != nil {
-		warnings = append(warnings, "字幕识别失败："+line.err.Error())
+	var lines []project.Line
+	if transcriber != nil {
+		var err error
+		lines, err = transcriber.Transcribe(
+			ctx, pcm, duration,
+			func(value float64) {
+				progress.send("转写字幕", 0.12+0.7*clamp(value))
+			},
+		)
+		if err != nil {
+			warnings = append(warnings, "字幕识别失败："+err.Error())
+		}
 	}
 
 	title := sourceTitle(absolute, duration)
-	built := fromResult(title, absolute, duration, chord.value, line.value)
+	built := fromLines(title, absolute, duration, lines)
+	if chart != nil {
+		send(report, "对齐曲谱", 0.84)
+		sheet.Apply(built, chart)
+	}
 	built.Warnings = warnings
+	built.RebuildBars()
 	path := filepath.Join(project.NewDir(root, title), "project.json")
 	send(report, "保存工程", 0.95)
 	if err := project.Save(path, built); err != nil {
@@ -174,40 +138,14 @@ func Import(
 	return built, path, nil
 }
 
-func fromResult(
+func fromLines(
 	title, source string,
 	duration float64,
-	result chordd.Result,
 	lines []project.Line,
 ) *project.Project {
 	p := project.New(title)
 	p.Source = source
 	p.Duration = duration
-	p.Tempo = result.Tempo
-	p.Key = result.Key
-	if result.TimeSignature[0] > 0 && result.TimeSignature[1] > 0 {
-		p.TimeSignature = result.TimeSignature
-	}
-	p.Beats = append([]float64(nil), result.Beats...)
-	p.Downbeats = append([]float64(nil), result.Downbeats...)
-	for _, chord := range result.Chords {
-		if chord.Label == "" || chord.End <= chord.Start {
-			continue
-		}
-		start := clampSeconds(chord.Start, duration)
-		end := clampSeconds(chord.End, duration)
-		if end <= start {
-			continue
-		}
-		p.Chords = append(p.Chords, score.ChordSegment{
-			Start:      start,
-			End:        end,
-			Label:      chord.Label,
-			Conf:       chord.Conf,
-			Candidates: append([]string(nil), chord.Candidates...),
-		})
-	}
-	p.RebuildBars()
 	for _, line := range lines {
 		text := strings.TrimSpace(line.Text)
 		start := clampSeconds(line.Start, duration)
@@ -286,10 +224,6 @@ type FFmpeg struct{}
 
 func (FFmpeg) Duration(ctx context.Context, path string) (float64, error) {
 	return media.Duration(ctx, path)
-}
-
-func (FFmpeg) ExtractAudio(ctx context.Context, source, destination string) error {
-	return media.ExtractAudio(ctx, source, destination)
 }
 
 func (FFmpeg) ExtractPCM(ctx context.Context, source, destination string) error {

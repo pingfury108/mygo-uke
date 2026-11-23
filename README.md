@@ -3,7 +3,7 @@
 一条自录尤克里里弹唱视频进去，出来一条带字幕和曲谱的成片。
 
 - `app/`：MyGo v0.10 原生桌面客户端，零模型。
-- `chordd/`：FastAPI 和弦/节拍分析服务，uv 管理，独立部署。
+- `chordd/`：早期音频和弦分析实验，已不参与客户端导入流程。
 - `designs/`：已经确认的 A · 录音棚界面设计稿。
 - `docs/`：需求与设计文档。
 
@@ -21,62 +21,44 @@ go mod tidy
 go tool mygo dev
 ```
 
-和弦服务：
-
-```sh
-cd chordd
-uv sync --dev
-uv run uvicorn chordd.main:app --reload --port 8790
-```
-
-真实分析器（beat_this + BTC）：
-
-```sh
-cd chordd
-uv sync --extra analysis
-CHORDD_ANALYZER=beat-this uv run uvicorn chordd.main:app --port 8790
-```
-
-首次分析会自动下载 12MB BTC 权重和 78MB beat_this 权重，缓存在
-`~/.cache/chordd/models` 与 `~/.cache/torch`。
-
-客户端默认连接 pcw 上的 `chordd`：
-
-```text
-http://MiWiFi-R1350-srv.local:8790
-```
-
-换机器或换端口时用环境变量覆盖：
-
-```sh
-MYGO_UKE_CHORDD=http://127.0.0.1:8790 go tool mygo dev
-```
-
-pcw 上由 runpulse 常驻，8787 已被同机其他服务占用，因此固定用 8790：
-
-```sh
-rdev server use pcw
-cd chordd && uv sync --frozen --extra analysis --no-dev
-rdev --no-sync runpulse restart chordd
-```
+客户端不再做音频和弦/节拍分析。和弦与小节来自导入的曲谱；曲谱里写了
+BPM 和拍号就据此生成拍点，没有时按和弦变化点生成小节。
 
 ## 当前阶段
 
 M1/M2/M3：录音棚界面、工程模型、小节生成、尤克里里指法表、真实导入管线
-（视频 → ffmpeg 抽音轨 → chordd → `project.json`），以及竖屏/横屏 ffmpeg
-成片导出。竖屏和弦条/指法图与横屏左右谱面已接入导出；真实
-`beat_this + BTC` 分析器已部署在 pcw。导入时若设置
-`MYGO_UKE_VOLCANO_API_KEY`，会并行跑火山流式 ASR 生成逐句字幕；
+（视频 + 曲谱 → ffmpeg 抽音轨 → ASR → 曲谱对齐 → `project.json`），以及
+竖屏/横屏 ffmpeg 成片导出。竖屏和弦条/指法图与横屏左右谱面已接入导出。
+导入时若设置 `MYGO_UKE_VOLCANO_API_KEY`，会跑火山流式 ASR 生成逐句字幕；
 也已经用真实 Key 验证过中文三句时间。也可以在字幕面板手动新增/编辑
 句子和起止时间。
 
-chordd 地址和火山 ASR Key 也可以在应用内「设置与 API Key」里保存；
+火山 ASR Key 与曲谱识别模型可以在应用内「设置」里保存；
 环境变量优先于保存的设置。预览画布会播放源视频，播放头、字幕卡片、
 和弦小节与时间轴保持同步。字幕卡片双击可改文字和起止时间，和弦小节
 点击可改；空格/K 播放暂停，J/L 退/进 10 秒，←/→ 退/进 5 秒，M 静音。
 
-工程列表支持重命名、删除和对当前工程重新分析；重新分析会更新和弦与
-小节，但保留用户改过的字幕和手动和弦。样式字号、强调色和安全区会随
+「+ 新建工程」会同时选择视频和曲谱，一次生成字幕与和弦；也可以把视频
+和曲谱图片一起拖进窗口。创建后仍可在当前工程标题旁点「+ 添加曲谱」或
+显示文件名的曲谱按钮、把 `png` / `jpg` / `jpeg` / `webp` 拖进窗口，或在
+主界面上按 `⌘V` 粘贴剪贴板里的图片/文件（微信、预览、截图都可以）。
+图片交给 OpenAI 兼容的视觉模型解析成
+`key` / `capo` / 逐行和弦与歌词，再按 ASR 字幕行对齐到当前视频时间轴；
+纯和弦段落只参与和弦排布，不会变成空字幕。没有 ASR 字幕时按总时长平均
+分布。和弦会锚定到歌词的具体字上，并一直持续到下一个和弦；跨句持续的
+和弦也不会在句尾被截断。预览和导出时字幕按时间逐字出现，和弦区间画在
+对应文字上方。文本曲谱也支持 `[F]好想[G]能看到` 这种明确写法。导入后
+原图会复制到工程目录的 `chart.*`，弹窗里会显示当前曲谱并
+可「预览」；工程标题旁的入口会显示曲谱文件名，工程设置的 `⋯` 里也能
+预览和更换。图片识别在「设置」里配置 Base URL / API Key / 模型，
+也支持
+`MYGO_UKE_SHEET_BASE_URL`（或 `OPENAI_BASE_URL`）、
+`MYGO_UKE_SHEET_API_KEY`（或 `OPENAI_API_KEY`）、
+`MYGO_UKE_SHEET_MODEL`。不配置模型时，可以直接粘贴
+“和弦行在上、歌词行在下”的文本曲谱。
+
+工程列表支持重命名、删除和对当前工程重新转写；重新转写会更新字幕时间，
+但导入曲谱后的和弦和用户改过的字幕会保留。样式字号、强调色和安全区会随
 工程自动保存，字幕位置也可在样式页调整，另有四套一键预设。播放头可以
 在时间轴上拖动。导出时字幕和曲谱直接烧进 MP4，macOS 用 Metal 合成 +
 VideoToolbox 硬件编码，不可用时回退 CPU；SRT 只是可选附加文件。导出

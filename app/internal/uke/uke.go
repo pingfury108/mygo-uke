@@ -1,6 +1,6 @@
 // Package uke is the only instrument-specific code in mygo-uke: a fixed
 // table of standard GCEA ukulele chord shapes, plus normalization from the
-// chord labels chordd returns.
+// chord labels found in imported charts.
 package uke
 
 import (
@@ -35,7 +35,7 @@ var pitchNames = [12]string{
 // Name returns the normalized chord label, without a slash bass.
 func (c Chord) Name() string { return pitchNames[c.Root] + c.Quality }
 
-// Normalize turns a chord label from chordd into a ukulele-friendly chord.
+// Normalize turns a chart chord label into a ukulele-friendly chord.
 // Slash chords keep their bass for display but are played as the root
 // chord; extended chords fall back to the closest shape.
 func Normalize(label string) (Chord, bool) {

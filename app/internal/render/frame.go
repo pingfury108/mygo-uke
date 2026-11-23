@@ -135,34 +135,54 @@ func vertical(c *ui.Context, spec Spec, style project.Style, accent, accentInk u
 	scrim(c, ui.Rect{X: 0, Y: h * 0.55, W: w, H: h * 0.45}, false)
 
 	p := spec.Project
-	bar, index := barAt(p, spec.Time)
+	bar, _ := barAt(p, spec.Time)
 	right := w*0.889 - w*0.09
 	top := h * 0.056
 	chipH := h * 0.047
-	currentW := h * 0.053
 	margin := w * 0.065
 
 	row := ui.Row(c).Absolute().Left(margin).Top(top).Width(right - margin).
 		Gap(w * 0.012).AlignItems(ui.Start)
 	row.Children(func() {
-		labels := barChords(bar)
-		if len(labels) == 0 {
-			labels = []string{"—"}
-		}
+		labels, upcoming := chordLabelsAt(p, spec.Time, 2)
 		for i, item := range labels {
-			chip(c, item, currentW, chipH, float32(style.ChordSize)*h/1920,
+			size := float32(style.ChordSize) * h / 1920
+			chip(c, item, chordChipWidth(item, size, h*0.053), chipH, size,
 				i == 0, accent, accentInk)
 		}
-		for _, item := range upcomingLabels(p, index, 2) {
-			chip(c, item, h*0.044, chipH*0.82, float32(style.ChordSize)*0.72*h/1920,
+		for _, item := range upcoming {
+			size := float32(style.ChordSize) * 0.72 * h / 1920
+			chip(c, item, chordChipWidth(item, size, h*0.044), chipH*0.82, size,
 				false, accent, accentInk)
 		}
 	})
-	fingering(c, spec, bar, top, w, h, accent)
+	fingering(c, spec, chordLabelAt(p, spec.Time, bar), top, w, h, accent)
 
-	if line, _, ok := lineAt(p, spec.Time); ok && strings.TrimSpace(line.Text) != "" {
-		subtitle(c, line.Text, spec, style)
+	if line, index, ok := lineAt(p, spec.Time); ok && strings.TrimSpace(line.Text) != "" &&
+		spec.Time >= line.Start && spec.Time <= line.End {
+		ui.Box(c).Absolute().Left(0).Top(0).Width(w).Height(h).
+			Draw(func(painter *ui.Painter, r ui.Rect) {
+				DrawLyricOverlay(painter, r, LyricOverlay{
+					Project:   p,
+					LineIndex: index,
+					Time:      spec.Time,
+					Style:     style,
+					Accent:    accent,
+					Ink:       ui.Hex(ink),
+				})
+			})
 	}
+}
+
+func chordChipWidth(value string, size, minimum float32) float32 {
+	if value == "" || value == "—" {
+		return minimum
+	}
+	width := float32(len([]rune(value)))*size*0.64 + size*0.55
+	if width < minimum {
+		return minimum
+	}
+	return width
 }
 
 func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk ui.Color) {
@@ -178,9 +198,9 @@ func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk
 		Height(h - pad*2).Gap(h * 0.009)
 	left.Children(func() {
 		label(c, "当前和弦", h*0.021, ui.RGBA(255, 248, 234, 0.58), 500)
-		name := "—"
-		if len(bar.Chords) > 0 {
-			name = bar.Chords[0]
+		name := chordLabelAt(p, spec.Time, bar)
+		if name == "" {
+			name = "—"
 		}
 		label(c, name, h*0.072, ui.Hex(ink), 650)
 		mono(c, fmt.Sprintf("原调 %s · Capo %d", keyOf(p), capoOf(p)), h*0.019,
@@ -188,7 +208,7 @@ func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk
 		mono(c, fmt.Sprintf("第 %d 小节 · %s", index+1, patternOf(p)), h*0.018,
 			ui.RGBA(255, 248, 234, 0.44))
 		ui.Box(c).Height(h * 0.024)
-		fingeringBox(c, bar, p, h*0.2, h*0.23, accent, accentInk)
+		fingeringBox(c, chordLabelAt(p, spec.Time, bar), p, h*0.2, h*0.23, accent, accentInk)
 	})
 
 	rightX := videoX + videoW + pad
@@ -196,7 +216,7 @@ func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk
 		Height(h - pad*2).Gap(h * 0.012)
 	right.Children(func() {
 		label(c, titleOf(p), h*0.028, ui.Hex(ink), 650).SingleLine()
-		mono(c, fmt.Sprintf("%.0f BPM · %d/%d · %s 调", tempoOf(p),
+		mono(c, fmt.Sprintf("%s · %d/%d · %s 调", tempoText(p),
 			timeSig(p)[0], timeSig(p)[1], keyOf(p)), h*0.018,
 			ui.RGBA(255, 248, 234, 0.46))
 		ui.Box(c).Height(h * 0.008)
@@ -222,18 +242,32 @@ func scoreLines(c *ui.Context, spec Spec, style project.Style, accent ui.Color, 
 			row.Background(ui.RGBA(243, 181, 68, 0.14))
 		}
 		row.Children(func() {
-			chords := "—"
-			if bar, _, ok := score.BarAt(p.Bars, line.Start); ok {
-				chords = strings.Join(barChords(bar), "  ")
-			}
+			chords := chordSpanLabels(p.LineChordSpans(i))
 			mono(c, chords, h*0.021, accent)
 			size := float32(style.SubSize) * h / 1920
 			if size < h*0.02 {
 				size = h * 0.02
 			}
-			label(c, line.Text, size, ui.Hex(ink), 500).SingleLine()
+			value := line.Text
+			if i == active && spec.Time >= line.Start && spec.Time <= line.End {
+				value = line.TextAt(spec.Time)
+			}
+			label(c, value, size, ui.Hex(ink), 500).SingleLine()
 		})
 	}
+}
+
+func chordSpanLabels(spans []project.ChordSpan) string {
+	var labels []string
+	for _, span := range spans {
+		if len(labels) == 0 || labels[len(labels)-1] != span.Label {
+			labels = append(labels, span.Label)
+		}
+	}
+	if len(labels) == 0 {
+		return "—"
+	}
+	return strings.Join(labels, "  ")
 }
 
 func barRows(c *ui.Context, p *project.Project, t float64, h float32, accent ui.Color) {
@@ -255,38 +289,6 @@ func barRows(c *ui.Context, p *project.Project, t float64, h float32, accent ui.
 			mono(c, score.TimeText(bar.Start), h*0.018, ui.RGBA(255, 248, 234, 0.42))
 		})
 	}
-}
-
-func subtitle(c *ui.Context, value string, spec Spec, style project.Style) {
-	w, h := float32(spec.Width), float32(spec.Height)
-	left := w * 0.055
-	right := w * 0.111
-	usable := w - left - right
-	size := float32(style.SubSize) * h / 1920
-	if size < h*0.018 {
-		size = h * 0.018
-	}
-	n := float32(len([]rune(value)))
-	if n > 0 && size*n > usable*0.92 {
-		size = usable * 0.92 / n
-	}
-	if size < h*0.016 {
-		size = h * 0.016
-	}
-	top := float32(style.SubtitleY) / 100
-	if top <= 0 {
-		top = 0.78
-	}
-	top = min(max(top, 0.5), 0.84)
-	ui.Box(c).Absolute().Left(left).Right(right).Top(h * top).Children(func() {
-		ui.Row(c).Center().Children(func() {
-			ui.Row(c).Padding(h*0.009, h*0.012, h*0.009, h*0.012).
-				Radius(h * 0.007).Background(ui.RGBA(10, 9, 8, 0.66)).Children(func() {
-				label(c, value, size, ui.Hex(ink), 600).
-					TextAlign(ui.Center).Width(usable - h*0.024)
-			})
-		})
-	})
 }
 
 func chip(c *ui.Context, value string, w, h, size float32, current bool, accent, inkColor ui.Color) {
@@ -312,26 +314,26 @@ func chip(c *ui.Context, value string, w, h, size float32, current bool, accent,
 	})
 }
 
-func fingering(c *ui.Context, spec Spec, bar score.Bar, top, w, h float32, accent ui.Color) {
+func fingering(c *ui.Context, spec Spec, labelValue string, top, w, h float32, accent ui.Color) {
 	boxW := w * 0.09
 	box := ui.Column(c).Absolute().Right(w*0.111).Top(top).Width(boxW).
 		Padding(h*0.005).Radius(h*0.007).Gap(h*0.002).
 		Border(1, ui.RGBA(255, 255, 255, 0.20)).
 		Background(ui.RGBA(16, 14, 12, 0.68))
 	box.Children(func() {
-		fingeringBox(c, bar, spec.Project, boxW-h*0.01, h*0.062, accent,
+		fingeringBox(c, labelValue, spec.Project, boxW-h*0.01, h*0.062, accent,
 			ui.RGBA(255, 248, 234, 0.62))
 	})
 }
 
 func fingeringBox(
 	c *ui.Context,
-	bar score.Bar,
+	labelValue string,
 	p *project.Project,
 	w, h float32,
 	accent, labelColor ui.Color,
 ) {
-	shape, ok := shapeFor(bar, p)
+	shape, ok := shapeFor(labelValue, p)
 	box := ui.Box(c).Width(w).Height(h)
 	box.Draw(func(painter *ui.Painter, r ui.Rect) {
 		if ok {
@@ -345,11 +347,8 @@ func fingeringBox(
 	}
 }
 
-func shapeFor(bar score.Bar, p *project.Project) (uke.Fingering, bool) {
-	if len(bar.Chords) == 0 {
-		return uke.Fingering{}, false
-	}
-	chord, ok := uke.Normalize(bar.Chords[0])
+func shapeFor(labelValue string, p *project.Project) (uke.Fingering, bool) {
+	chord, ok := uke.Normalize(labelValue)
 	if !ok {
 		return uke.Fingering{}, false
 	}
@@ -449,6 +448,51 @@ func upcomingLabels(p *project.Project, index, n int) []string {
 	return out
 }
 
+func chordLabelAt(p *project.Project, t float64, bar score.Bar) string {
+	if p != nil {
+		if segment, _, ok := score.ChordAt(p.Chords, t); ok {
+			return segment.Label
+		}
+	}
+	if len(bar.Chords) > 0 {
+		return bar.Chords[0]
+	}
+	return ""
+}
+
+func chordLabelsAt(p *project.Project, t float64, upcoming int) (labels, next []string) {
+	bar, _ := barAt(p, t)
+	current := chordLabelAt(p, t, bar)
+	if current == "" {
+		labels = []string{"—"}
+	} else {
+		labels = []string{current}
+	}
+	if p == nil || upcoming <= 0 {
+		return labels, nil
+	}
+	segment, index, ok := score.ChordAt(p.Chords, t)
+	if !ok {
+		index = len(p.Chords) - 1
+		for i, item := range p.Chords {
+			if item.Start >= t {
+				index = i - 1
+				break
+			}
+		}
+	}
+	last := segment.Label
+	for i := index + 1; i < len(p.Chords) && len(next) < upcoming; i++ {
+		label := p.Chords[i].Label
+		if label == "" || label == last {
+			continue
+		}
+		next = append(next, label)
+		last = label
+	}
+	return labels, next
+}
+
 func lineAt(p *project.Project, t float64) (project.Line, int, bool) {
 	if p == nil || len(p.Lines) == 0 {
 		return project.Line{}, -1, false
@@ -533,11 +577,11 @@ func titleOf(p *project.Project) string {
 	return p.Title
 }
 
-func tempoOf(p *project.Project) float64 {
-	if p == nil {
-		return 0
+func tempoText(p *project.Project) string {
+	if p == nil || p.Tempo <= 0 {
+		return "— BPM"
 	}
-	return p.Tempo
+	return fmt.Sprintf("%.0f BPM", p.Tempo)
 }
 
 func timeSig(p *project.Project) [2]int {

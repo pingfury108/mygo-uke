@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"mygo-uke/internal/asr"
-	"mygo-uke/internal/chordd"
 	"mygo-uke/internal/project"
+	"mygo-uke/internal/sheet"
 )
 
-// Run with a real chordd and ffmpeg:
+// Run with ffmpeg:
 //
 //	MYGO_UKE_SOURCE=/path/song.mp3 go test ./internal/pipeline -run TestImportIntegration -v
 func TestImportIntegration(t *testing.T) {
@@ -19,36 +19,22 @@ func TestImportIntegration(t *testing.T) {
 	if source == "" {
 		t.Skip("set MYGO_UKE_SOURCE to run the real import")
 	}
-	url := os.Getenv("MYGO_UKE_CHORDD")
-	if url == "" {
-		url = chorddBaseURL()
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	p, path, err := Import(
-		ctx, source, chordd.New(url), FFmpeg{}, nil, t.TempDir(), nil,
+		ctx, source, FFmpeg{}, nil, nil, t.TempDir(), nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Duration <= 0 || len(p.Chords) == 0 || len(p.Bars) == 0 {
-		t.Fatalf("project duration=%v chords=%d bars=%d", p.Duration, len(p.Chords), len(p.Bars))
+	if p.Duration <= 0 {
+		t.Fatalf("project duration=%v", p.Duration)
 	}
 	if _, err := project.Load(path); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf(
-		"duration=%.1fs tempo=%.0f key=%s chords=%d bars=%d downbeats=%d",
-		p.Duration, p.Tempo, p.Key, len(p.Chords), len(p.Bars), len(p.Downbeats),
-	)
-}
-
-func chorddBaseURL() string {
-	if url := os.Getenv("MYGO_UKE_CHORDD"); url != "" {
-		return url
-	}
-	return "http://MiWiFi-R1350-srv.local:8790"
+	t.Logf("duration=%.1fs bars=%d", p.Duration, len(p.Bars))
 }
 
 // Run with a Volcengine key and speech audio:
@@ -70,7 +56,7 @@ func TestImportLiveASR(t *testing.T) {
 		Model:      os.Getenv("MYGO_UKE_VOLCANO_MODEL"),
 	}}
 	p, path, err := Import(
-		ctx, source, fakeAnalyzer{}, FFmpeg{}, transcriber, t.TempDir(), nil,
+		ctx, source, FFmpeg{}, transcriber, nil, t.TempDir(), nil,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -93,9 +79,9 @@ func TestImportLiveASR(t *testing.T) {
 	}
 }
 
-// Run with a real chordd, Volcengine key and a song:
+// Run with a Volcengine key and a song:
 //
-//	MYGO_UKE_SOURCE=/path/song.mp4 MYGO_UKE_VOLCANO_API_KEY=... \
+//	MYGO_UKE_SOURCE=/path/song.mp4 MYGO_UKE_VOLCANO_API_KEY=... MYGO_UKE_CHART_TEXT=... \
 //	  go test ./internal/pipeline -run TestImportFullIntegration -v -count=1
 func TestImportFullIntegration(t *testing.T) {
 	source := os.Getenv("MYGO_UKE_SOURCE")
@@ -109,6 +95,14 @@ func TestImportFullIntegration(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
+	var chart *sheet.Sheet
+	if text := os.Getenv("MYGO_UKE_CHART_TEXT"); text != "" {
+		var err error
+		chart, err = sheet.ParseText(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	transcriber := ASRTranscriber{Config: asr.Config{
 		APIKey:     key,
 		WSURL:      os.Getenv("MYGO_UKE_VOLCANO_WS_URL"),
@@ -118,9 +112,9 @@ func TestImportFullIntegration(t *testing.T) {
 	p, path, err := Import(
 		ctx,
 		source,
-		chordd.New(chorddBaseURL()),
 		FFmpeg{},
 		transcriber,
+		chart,
 		root,
 		func(progress Progress) {
 			t.Logf("%s %.0f%%", progress.Stage, progress.Value*100)
@@ -128,9 +122,6 @@ func TestImportFullIntegration(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if len(p.Chords) == 0 || len(p.Bars) == 0 {
-		t.Fatalf("chords=%d bars=%d", len(p.Chords), len(p.Bars))
 	}
 	if len(p.Warnings) > 0 {
 		t.Fatalf("warnings = %v", p.Warnings)

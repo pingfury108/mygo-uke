@@ -14,6 +14,7 @@ type ChordSegment struct {
 	End        float64  `json:"end"`
 	Label      string   `json:"label"`
 	Conf       float64  `json:"conf"`
+	Source     string   `json:"source,omitempty"`
 	AltLabel   string   `json:"altLabel,omitempty"`
 	Candidates []string `json:"candidates,omitempty"`
 	Approx     bool     `json:"approx,omitempty"`
@@ -159,6 +160,9 @@ func SnapToBeats(beats []float64, chords []ChordSegment, tolerance float64) []Ch
 	out := make([]ChordSegment, len(chords))
 	copy(out, chords)
 	for i := range out {
+		if out[i].Source == "chart" {
+			continue
+		}
 		start := snapBeat(beats, out[i].Start, tolerance)
 		end := snapBeat(beats, out[i].End, tolerance)
 		if end > start {
@@ -167,6 +171,23 @@ func SnapToBeats(beats []float64, chords []ChordSegment, tolerance float64) []Ch
 		}
 	}
 	return out
+}
+
+// ChordAt returns the chord sounding at t. The end of the last segment is
+// inclusive so the final chord can be displayed at the end of a project.
+func ChordAt(chords []ChordSegment, t float64) (ChordSegment, int, bool) {
+	if len(chords) == 0 || t < chords[0].Start {
+		return ChordSegment{}, -1, false
+	}
+	for i := range chords {
+		if t < chords[i].Start {
+			break
+		}
+		if t < chords[i].End || (i == len(chords)-1 && t <= chords[i].End+1e-6) {
+			return chords[i], i, true
+		}
+	}
+	return ChordSegment{}, -1, false
 }
 
 func snapBeat(beats []float64, t, tolerance float64) float64 {

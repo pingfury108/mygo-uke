@@ -1,6 +1,10 @@
 package app
 
-import "github.com/egoist/mygo/ui"
+import (
+	"github.com/egoist/mygo/ui"
+
+	"mygo-uke/internal/score"
+)
 
 type stylePreset struct {
 	Name      string
@@ -33,6 +37,20 @@ func (a *app) setBarChord(index int, value string) bool {
 		return false
 	}
 	bar := &a.proj.Bars[index]
+	at := bar.Start
+	if a.proj.SetChartChordAt(at, value) {
+		a.proj.RebuildChartChords()
+		if next := score.BarIndexAt(a.proj.Bars, at); next >= 0 {
+			updated := &a.proj.Bars[next]
+			updated.Chords = []string{value}
+			updated.Manual = true
+			updated.NeedsReview = false
+			updated.AltLabel = ""
+			updated.Approx = false
+		}
+		a.saveCurrent()
+		return true
+	}
 	if len(bar.Chords) == 0 {
 		bar.Chords = []string{value}
 	} else {

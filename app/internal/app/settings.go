@@ -6,14 +6,17 @@ import (
 	"path/filepath"
 
 	"mygo-uke/internal/asr"
+	"mygo-uke/internal/sheet"
 )
 
 type settings struct {
-	ChorddURL         string `json:"chorddUrl"`
 	VolcanoAPIKey     string `json:"volcanoApiKey"`
 	VolcanoResourceID string `json:"volcanoResourceId"`
 	VolcanoWSURL      string `json:"volcanoWsUrl"`
 	VolcanoModel      string `json:"volcanoModel"`
+	SheetBaseURL      string `json:"sheetBaseUrl"`
+	SheetAPIKey       string `json:"sheetApiKey"`
+	SheetModel        string `json:"sheetModel"`
 }
 
 func settingsPath() string {
@@ -32,12 +35,22 @@ func defaultSettings() settings {
 	if key == "" {
 		key = os.Getenv("VOLCANO_API_KEY")
 	}
+	sheetKey := os.Getenv("MYGO_UKE_SHEET_API_KEY")
+	if sheetKey == "" {
+		sheetKey = os.Getenv("OPENAI_API_KEY")
+	}
+	sheetBase := os.Getenv("MYGO_UKE_SHEET_BASE_URL")
+	if sheetBase == "" {
+		sheetBase = os.Getenv("OPENAI_BASE_URL")
+	}
 	return settings{
-		ChorddURL:         chorddBaseURL(),
 		VolcanoAPIKey:     key,
 		VolcanoResourceID: envOr("MYGO_UKE_VOLCANO_RESOURCE_ID", ""),
 		VolcanoWSURL:      envOr("MYGO_UKE_VOLCANO_WS_URL", ""),
 		VolcanoModel:      envOr("MYGO_UKE_VOLCANO_MODEL", ""),
+		SheetBaseURL:      sheetBase,
+		SheetAPIKey:       sheetKey,
+		SheetModel:        envOr("MYGO_UKE_SHEET_MODEL", ""),
 	}
 }
 
@@ -50,9 +63,6 @@ func loadSettings() settings {
 	var saved settings
 	if json.Unmarshal(data, &saved) != nil {
 		return s
-	}
-	if os.Getenv("MYGO_UKE_CHORDD") == "" && saved.ChorddURL != "" {
-		s.ChorddURL = saved.ChorddURL
 	}
 	if os.Getenv("MYGO_UKE_VOLCANO_API_KEY") == "" &&
 		os.Getenv("VOLCANO_API_KEY") == "" && saved.VolcanoAPIKey != "" {
@@ -67,6 +77,17 @@ func loadSettings() settings {
 	if os.Getenv("MYGO_UKE_VOLCANO_MODEL") == "" && saved.VolcanoModel != "" {
 		s.VolcanoModel = saved.VolcanoModel
 	}
+	if os.Getenv("MYGO_UKE_SHEET_BASE_URL") == "" &&
+		os.Getenv("OPENAI_BASE_URL") == "" && saved.SheetBaseURL != "" {
+		s.SheetBaseURL = saved.SheetBaseURL
+	}
+	if os.Getenv("MYGO_UKE_SHEET_API_KEY") == "" &&
+		os.Getenv("OPENAI_API_KEY") == "" && saved.SheetAPIKey != "" {
+		s.SheetAPIKey = saved.SheetAPIKey
+	}
+	if os.Getenv("MYGO_UKE_SHEET_MODEL") == "" && saved.SheetModel != "" {
+		s.SheetModel = saved.SheetModel
+	}
 	return s
 }
 
@@ -76,6 +97,14 @@ func (s settings) asrConfig() asr.Config {
 		WSURL:      s.VolcanoWSURL,
 		ResourceID: s.VolcanoResourceID,
 		Model:      s.VolcanoModel,
+	}
+}
+
+func (s settings) sheetConfig() sheet.Config {
+	return sheet.Config{
+		BaseURL: s.SheetBaseURL,
+		APIKey:  s.SheetAPIKey,
+		Model:   s.SheetModel,
 	}
 }
 
