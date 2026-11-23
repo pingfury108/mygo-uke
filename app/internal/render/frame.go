@@ -136,27 +136,23 @@ func vertical(c *ui.Context, spec Spec, style project.Style, accent, accentInk u
 
 	p := spec.Project
 	bar, _ := barAt(p, spec.Time)
-	right := w*0.889 - w*0.09
-	top := h * 0.056
-	chipH := h * 0.047
+	top := h * 0.054
 	margin := w * 0.065
+	right := w*0.75 - h*0.016
+	size := float32(style.ChordSize) * h / 1920 * 1.32
 
 	row := ui.Row(c).Absolute().Left(margin).Top(top).Width(right - margin).
-		Gap(w * 0.012).AlignItems(ui.Start)
+		Gap(h * 0.010).AlignItems(ui.Start)
 	row.Children(func() {
 		labels, upcoming := chordLabelsAt(p, spec.Time, 2)
-		for i, item := range labels {
-			size := float32(style.ChordSize) * h / 1920
-			chip(c, item, chordChipWidth(item, size, h*0.053), chipH, size,
-				i == 0, accent, accentInk)
+		for _, item := range labels {
+			currentChip(c, item, size, p, accent, accentInk)
 		}
 		for _, item := range upcoming {
-			size := float32(style.ChordSize) * 0.72 * h / 1920
-			chip(c, item, chordChipWidth(item, size, h*0.044), chipH*0.82, size,
-				false, accent, accentInk)
+			nextChip(c, item, size*0.77)
 		}
 	})
-	fingering(c, spec, chordLabelAt(p, spec.Time, bar), top, w, h, accent)
+	fingering(c, spec, chordLabelAt(p, spec.Time, bar), w, h, accent)
 
 	if line, index, ok := lineAt(p, spec.Time); ok && strings.TrimSpace(line.Text) != "" &&
 		spec.Time >= line.Start && spec.Time <= line.End {
@@ -172,17 +168,6 @@ func vertical(c *ui.Context, spec Spec, style project.Style, accent, accentInk u
 				})
 			})
 	}
-}
-
-func chordChipWidth(value string, size, minimum float32) float32 {
-	if value == "" || value == "—" {
-		return minimum
-	}
-	width := float32(len([]rune(value)))*size*0.64 + size*0.55
-	if width < minimum {
-		return minimum
-	}
-	return width
 }
 
 func horizontal(c *ui.Context, spec Spec, style project.Style, accent, accentInk ui.Color) {
@@ -291,38 +276,65 @@ func barRows(c *ui.Context, p *project.Project, t float64, h float32, accent ui.
 	}
 }
 
-func chip(c *ui.Context, value string, w, h, size float32, current bool, accent, inkColor ui.Color) {
+func currentChip(c *ui.Context, value string, size float32, p *project.Project, accent, inkColor ui.Color) {
 	if value == "" {
 		value = "—"
 	}
-	if size < h*0.28 {
-		size = h * 0.28
-	}
-	box := ui.Column(c).Width(w).Height(h).Radius(h * 0.16).Center()
-	if current {
-		box.Background(accent)
-	} else {
-		box.Border(1, ui.RGBA(255, 255, 255, 0.20)).
-			Background(ui.RGBA(16, 14, 12, 0.64))
-	}
-	color := ui.RGBA(255, 248, 234, 0.82)
-	if current {
-		color = inkColor
-	}
+	box := ui.Column(c).Padding(size*0.32, size*0.46, size*0.27, size*0.46).
+		Radius(size*0.32).Background(accent).
+		Shadow(0, size*0.45, size*1.1, 0, ui.RGBA(0, 0, 0, 0.24))
 	box.Children(func() {
-		label(c, value, size, color, 720).SingleLine()
+		label(c, value, size, inkColor, 720).SingleLine()
+		mono(c, beatRow(p), size*0.30, withAlpha(inkColor, 0.66)).SingleLine()
 	})
 }
 
-func fingering(c *ui.Context, spec Spec, labelValue string, top, w, h float32, accent ui.Color) {
-	boxW := w * 0.09
-	box := ui.Column(c).Absolute().Right(w*0.111).Top(top).Width(boxW).
-		Padding(h*0.005).Radius(h*0.007).Gap(h*0.002).
-		Border(1, ui.RGBA(255, 255, 255, 0.20)).
-		Background(ui.RGBA(16, 14, 12, 0.68))
+func nextChip(c *ui.Context, value string, size float32) {
+	if value == "" {
+		value = "—"
+	}
+	box := ui.Column(c).Padding(size*0.29, size*0.41, size*0.24, size*0.41).
+		Radius(size*0.41).
+		Border(max(1, size*0.06), ui.RGBA(255, 255, 255, 0.14)).
+		Background(ui.RGBA(16, 14, 12, 0.42))
 	box.Children(func() {
-		fingeringBox(c, labelValue, spec.Project, boxW-h*0.01, h*0.062, accent,
-			ui.RGBA(255, 248, 234, 0.62))
+		label(c, value, size, ui.RGBA(255, 248, 234, 0.82), 720).SingleLine()
+	})
+}
+
+// beatRow is the "1 · 2 · 3 · 4" strip under the current chord, as the
+// preview has always shown it, generated from the project's time signature.
+func beatRow(p *project.Project) string {
+	beats := 4
+	if p != nil && p.TimeSignature[0] > 0 && p.TimeSignature[0] <= 12 {
+		beats = p.TimeSignature[0]
+	}
+	parts := make([]string, beats)
+	for i := range parts {
+		parts[i] = strconv.Itoa(i + 1)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func fingering(c *ui.Context, spec Spec, labelValue string, w, h float32, accent ui.Color) {
+	shape, ok := shapeFor(labelValue, spec.Project)
+	boxW := w * 0.22
+	pad := w * 0.018
+	box := ui.Column(c).Absolute().Right(w*0.055).Top(h*0.052).Width(boxW).
+		Padding(pad, pad, pad*0.8, pad).Radius(w*0.032).
+		Border(max(1, w*0.0036), ui.RGBA(255, 255, 255, 0.14)).
+		Background(ui.RGBA(16, 14, 12, 0.46)).Gap(w * 0.007)
+	box.Children(func() {
+		diagramBox := ui.Box(c).Height(boxW).FillWidth()
+		diagramBox.Draw(func(painter *ui.Painter, r ui.Rect) {
+			if ok {
+				diagram(painter, r, shape, accent)
+			}
+		})
+		if ok {
+			text(c, shape.Name, boxW*0.113, ui.RGBA(255, 248, 234, 0.78)).
+				TextAlign(ui.Center).Width(boxW - 2*pad)
+		}
 	})
 }
 
@@ -338,9 +350,7 @@ func fingeringBox(
 	box.Draw(func(painter *ui.Painter, r ui.Rect) {
 		if ok {
 			diagram(painter, r, shape, accent)
-			return
 		}
-		painter.Text(r.X+r.W/2-7, r.Y+r.H/2+5, "?", 16, ui.RGBA(255, 248, 234, 0.44))
 	})
 	if ok {
 		text(c, shape.Name, h*0.07, labelColor).TextAlign(ui.Center).Width(w)
@@ -362,17 +372,18 @@ func diagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color) {
 	bottom := r.Y + r.H*0.9
 	spanX := (right - left) / 3
 	spanY := (bottom - top) / 4
+	unit := max(1, r.W/60)
 	lineColor := ui.RGBA(255, 255, 255, 0.30)
 	for i := 0; i < 4; i++ {
 		x := left + spanX*float32(i)
-		p.Line(x, top, x, bottom, 1, lineColor)
+		p.Line(x, top, x, bottom, unit, lineColor)
 	}
 	for k := 0; k <= 4; k++ {
 		y := top + spanY*float32(k)
 		if k == 0 {
-			p.Line(left, y, right, y, 2, ui.RGBA(255, 255, 255, 0.52))
+			p.Line(left, y, right, y, 2*unit, ui.RGBA(255, 255, 255, 0.52))
 		} else {
-			p.Line(left, y, right, y, 1, lineColor)
+			p.Line(left, y, right, y, unit, lineColor)
 		}
 	}
 	base := shape.Base
@@ -383,13 +394,14 @@ func diagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color) {
 		x := left + spanX*float32(i)
 		switch {
 		case fret < 0:
-			p.Text(x-2.5, top-5, "×", 7, ui.RGBA(255, 248, 234, 0.62))
+			p.Text(x-2.5*unit, top-5*unit, "×", 7*unit, ui.RGBA(255, 248, 234, 0.62))
 		case fret == 0:
-			p.Stroke(ui.Rect{X: x - 2.5, Y: top - 8, W: 5, H: 5},
-				ui.RGBA(255, 248, 234, 0.72), 2.5, 1)
+			p.Stroke(ui.Rect{X: x - 2.5*unit, Y: top - 8*unit, W: 5 * unit, H: 5 * unit},
+				ui.RGBA(255, 248, 234, 0.72), 2.5*unit, unit)
 		case fret >= base && fret <= base+3:
 			cy := top + spanY*(float32(fret-base)+0.5)
-			p.Fill(ui.Rect{X: x - 3, Y: cy - 3, W: 6, H: 6}, accent, 3)
+			p.Fill(ui.Rect{X: x - 3*unit, Y: cy - 3*unit, W: 6 * unit, H: 6 * unit},
+				accent, 3*unit)
 		}
 	}
 }
@@ -555,9 +567,6 @@ func inkFor(hex string) ui.Color {
 	}
 	return ui.Hex("#241A08")
 }
-
-// InkOn returns readable text for an accent background.
-func InkOn(hex string) ui.Color { return inkFor(hex) }
 
 func keyOf(p *project.Project) string {
 	if p == nil || p.Key == "" {

@@ -393,30 +393,6 @@ func (a *app) currentChord() (string, bool) {
 	return "", false
 }
 
-func (a *app) upcomingChords(n int) []string {
-	if a.proj == nil || n <= 0 {
-		return nil
-	}
-	segment, index, ok := score.ChordAt(a.proj.Chords, a.playhead)
-	if !ok {
-		index = len(a.proj.Chords) - 1
-		for i, item := range a.proj.Chords {
-			if item.Start >= a.playhead {
-				index = i - 1
-				break
-			}
-		}
-	}
-	var out []string
-	for i := index + 1; i < len(a.proj.Chords) && len(out) < n; i++ {
-		if segment.Label != "" && a.proj.Chords[i].Label == segment.Label {
-			continue
-		}
-		out = append(out, a.proj.Chords[i].Label)
-	}
-	return out
-}
-
 func (a *app) save() {
 	if a.proj == nil || a.projPath == "" {
 		return

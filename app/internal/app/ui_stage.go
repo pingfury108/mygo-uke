@@ -20,10 +20,6 @@ func (a *app) overlayAccent() ui.Color {
 	return pal.accent
 }
 
-func (a *app) overlayInk() ui.Color {
-	return render.InkOn(a.proj.Style.Accent)
-}
-
 func (a *app) currentChordLabel(bar score.Bar) string {
 	if label, ok := a.currentChord(); ok {
 		return label
@@ -254,12 +250,6 @@ func lineChordText(spans []project.ChordSpan) string {
 }
 
 func (a *app) videoFrame(c *ui.Context, w, h float32) {
-	bar, _, ok := a.barAt(a.playhead)
-	if !ok && len(a.proj.Bars) > 0 {
-		bar = a.proj.Bars[0]
-	}
-	line, lineIndex, hasLine := a.lineAt(a.playhead)
-
 	frame := ui.Box(c).Size(w, h).Radius(17).Clip().
 		Border(1, pal.frameLine).Background(ui.Hex("#171512")).
 		Shadow(0, 28, 60, 0, ui.RGBA(0, 0, 0, 0.34))
@@ -277,11 +267,15 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 	})
 	frame.Children(func() {
 		a.videoLayer(c, ui.Cover)
-		a.chordStrip(c, w, h)
-		diagramCorner(c, a.currentChordLabel(bar), w, h, a.proj.Capo, a.overlayAccent())
-		if hasLine && a.playhead >= line.Start && a.playhead <= line.End {
-			a.subtitleOverlay(c, lineIndex, w, h)
-		}
+		render.Overlay(c, render.Spec{
+			Width:       int(w),
+			Height:      int(h),
+			VideoWidth:  int(w),
+			VideoHeight: int(h),
+			Project:     a.proj,
+			Time:        a.playhead,
+			Orientation: 0,
+		})
 		if a.proj.Style.ShowSafe {
 			safeLabels(c, w, h)
 		}
@@ -352,75 +346,6 @@ func safeLabels(c *ui.Context, w, h float32) {
 	})
 }
 
-func (a *app) chordStrip(c *ui.Context, w, h float32) {
-	current, ok := a.currentChord()
-	chords := []string{""}
-	if ok {
-		chords = []string{current}
-	}
-	upcoming := a.upcomingChords(2)
-	row := ui.Row(c).Absolute().LeftPercent(6.5).TopPercent(5.4).
-		Right(w*0.25 + 8).Gap(5).AlignItems(ui.Start)
-	row.Children(func() {
-		for i, chord := range chords {
-			current := i == 0
-			a.chordChip(c, chord, current, h)
-		}
-		shown := 0
-		for _, chord := range upcoming {
-			if shown >= 2 {
-				break
-			}
-			a.chordChip(c, chord, false, h)
-			shown++
-		}
-	})
-}
-
-func (a *app) chordChip(c *ui.Context, chord string, current bool, h float32) {
-	if chord == "" {
-		chord = "—"
-	}
-	if current {
-		chip := ui.Column(c).Padding(7, 10, 6, 10).Radius(7).Background(a.overlayAccent()).
-			Shadow(0, 10, 24, 0, ui.RGBA(0, 0, 0, 0.24))
-		chip.Children(func() {
-			label(c, chord, 22, a.overlayInk(), 720).SingleLine()
-			mono(c, "1 · 2 · 3 · 4", 6.5, ui.RGBA(29, 21, 7, 0.66))
-		})
-		return
-	}
-	chip := ui.Column(c).Padding(5, 7, 4, 7).Radius(7).
-		Border(1, ui.RGBA(255, 255, 255, 0.14)).
-		Background(ui.RGBA(16, 14, 12, 0.42))
-	chip.Children(func() {
-		label(c, chord, 17, ui.RGBA(255, 248, 234, 0.82), 720).SingleLine()
-	})
-}
-
-func diagramCorner(c *ui.Context, labelValue string, w, h float32, capo int, accent ui.Color) {
-	chord, ok := uke.Normalize(labelValue)
-	var shape uke.Fingering
-	if ok {
-		shape, ok = uke.Shape(chord, capo)
-	}
-	box := ui.Column(c).Absolute().RightPercent(5.5).TopPercent(5.2).Width(62).
-		Padding(5, 5, 4, 5).Radius(9).
-		Border(1, ui.RGBA(255, 255, 255, 0.14)).
-		Background(ui.RGBA(16, 14, 12, 0.46)).Gap(2)
-	box.Children(func() {
-		diagram := ui.Box(c).Height(62).FillWidth()
-		diagram.Draw(func(p *ui.Painter, r ui.Rect) {
-			if ok {
-				drawDiagram(p, r, shape, accent)
-			} else {
-				p.Text(r.X+r.W/2-8, r.Y+r.H/2, "?", 16, pal.faint)
-			}
-		})
-		text(c, labelValue, 7, ui.RGBA(255, 248, 234, 0.78)).TextAlign(ui.Center).SingleLine()
-	})
-}
-
 func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color) {
 	left := r.X + r.W*0.1
 	right := r.X + r.W*0.9
@@ -457,20 +382,6 @@ func drawDiagram(p *ui.Painter, r ui.Rect, shape uke.Fingering, accent ui.Color)
 			p.Fill(ui.Rect{X: x - 3, Y: cy - 3, W: 6, H: 6}, accent, 3)
 		}
 	}
-}
-
-func (a *app) subtitleOverlay(c *ui.Context, lineIndex int, w, h float32) {
-	ui.Box(c).Absolute().Left(0).Top(0).Width(w).Height(h).
-		Draw(func(p *ui.Painter, r ui.Rect) {
-			render.DrawLyricOverlay(p, r, render.LyricOverlay{
-				Project:   a.proj,
-				LineIndex: lineIndex,
-				Time:      a.playhead,
-				Style:     a.proj.Style,
-				Accent:    a.overlayAccent(),
-				Ink:       ui.Hex("#FFF8EA"),
-			})
-		})
 }
 
 func (a *app) transport(c *ui.Context) {
