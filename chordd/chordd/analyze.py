@@ -74,7 +74,7 @@ class RealAnalyzer:
 
     name: str = "beat-this"
     models: list[str] = field(
-        default_factory=lambda: ["btc-large-voca", "beat-this"]
+        default_factory=lambda: ["btc-chordmini", "beat-this"]
     )
 
     def analyze(self, audio: Path, duration: float | None, progress: Progress) -> AnalyzeResult:

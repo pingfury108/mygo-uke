@@ -51,10 +51,11 @@ type Result struct {
 
 // Chord is one recognised chord segment.
 type Chord struct {
-	Start float64 `json:"start"`
-	End   float64 `json:"end"`
-	Label string  `json:"label"`
-	Conf  float64 `json:"conf"`
+	Start      float64  `json:"start"`
+	End        float64  `json:"end"`
+	Label      string   `json:"label"`
+	Conf       float64  `json:"conf"`
+	Candidates []string `json:"candidates,omitempty"`
 }
 
 type accepted struct {

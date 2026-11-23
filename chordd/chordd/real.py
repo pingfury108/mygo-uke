@@ -15,6 +15,7 @@ from .chords import detect_key, infer_time_signature, segments_from_frames
 from .models import AnalyzeResult
 
 FRAME_SECONDS = 10.0 / 108.0
+DEFAULT_OVERLAP = 0.5
 
 BTC_CONFIG = {
     "feature_size": 144,
@@ -36,6 +37,29 @@ BTC_CONFIG = {
 _engine: Engine | None = None
 _engine_lock = threading.Lock()
 _inference_lock = threading.Lock()
+
+
+def window_starts(frames: int, timestep: int, stride: int) -> list[int]:
+    """Return window offsets so every frame is covered at least once."""
+    if frames <= 0:
+        return []
+    if frames <= timestep:
+        return [0]
+    pad = -(frames - timestep) % stride
+    return list(range(0, frames + pad - timestep + 1, stride))
+
+
+def checkpoint_parts(checkpoint: dict) -> tuple[dict, Any, Any]:
+    """Read weights and normalization from either BTC checkpoint layout."""
+    state = checkpoint.get("model_state_dict") or checkpoint.get("model")
+    if not isinstance(state, dict):
+        raise RuntimeError("BTC checkpoint has no model weights")
+    normalization = checkpoint.get("normalization")
+    if isinstance(normalization, dict) and "mean" in normalization and "std" in normalization:
+        return state, normalization["mean"], normalization["std"]
+    if "mean" in checkpoint and "std" in checkpoint:
+        return state, checkpoint["mean"], checkpoint["std"]
+    raise RuntimeError("BTC checkpoint has no normalization stats")
 
 
 class Engine:
@@ -65,10 +89,13 @@ class Engine:
             ensure_btc_weights(), map_location="cpu", weights_only=False
         )
         self.btc = BTCModel(BTC_CONFIG).to(self.device).eval()
-        self.btc.load_state_dict(checkpoint["model"])
-        self.mean = torch.as_tensor(checkpoint["mean"], dtype=torch.float32, device=self.device)
-        self.std = torch.as_tensor(checkpoint["std"], dtype=torch.float32, device=self.device)
+        state, mean, std = checkpoint_parts(checkpoint)
+        self.btc.load_state_dict(state)
+        self.mean = torch.as_tensor(mean, dtype=torch.float32, device=self.device)
+        self.std = torch.as_tensor(std, dtype=torch.float32, device=self.device)
         self.batch_size = max(1, int(os.environ.get("CHORDD_BTC_BATCH", "8")))
+        overlap = float(os.environ.get("CHORDD_BTC_OVERLAP", str(DEFAULT_OVERLAP)))
+        self.overlap = min(0.75, max(0.0, overlap))
 
     def beats(self, signal: Any, sample_rate: int) -> tuple[list[float], list[float]]:
         import numpy as np
@@ -84,7 +111,7 @@ class Engine:
             downbeats = [0.0]
         return beats, downbeats
 
-    def chords(self, signal: Any, sample_rate: int) -> tuple[list[int], list[float]]:
+    def chords(self, signal: Any, sample_rate: int) -> tuple[list[int], list[float], Any]:
         import librosa
         import numpy as np
 
@@ -100,28 +127,48 @@ class Engine:
         if frames == 0:
             return [], []
 
-        pad = (-frames) % BTC_CONFIG["timestep"]
+        timestep = BTC_CONFIG["timestep"]
+        stride = max(1, int(round(timestep * (1.0 - self.overlap))))
+        starts = window_starts(frames, timestep, stride)
+        pad = starts[-1] + timestep - frames
         if pad:
             feature = np.pad(feature, ((0, pad), (0, 0)), mode="constant")
         tensor = self.torch.from_numpy(feature).to(self.device)
         tensor = (tensor - self.mean) / self.std
-        tensor = tensor.reshape(-1, BTC_CONFIG["timestep"], BTC_CONFIG["feature_size"])
 
-        labels: list[np.ndarray] = []
-        confidence: list[np.ndarray] = []
+        weight = np.zeros((frames, BTC_CONFIG["num_chords"]), dtype=np.float32)
+        cover = np.zeros(frames, dtype=np.float32)
         with self.torch.inference_mode():
-            for start in range(0, tensor.shape[0], self.batch_size):
-                batch = tensor[start : start + self.batch_size]
+            for offset in range(0, len(starts), self.batch_size):
+                chunk = starts[offset : offset + self.batch_size]
+                batch = self.torch.stack([tensor[start : start + timestep] for start in chunk])
                 hidden, _ = self.btc.self_attn_layers(batch)
                 logits = self.btc.output_layer(hidden)
-                probs = self.torch.softmax(logits, dim=-1)
-                conf, index = probs.max(dim=-1)
-                labels.append(index.cpu().numpy().reshape(-1))
-                confidence.append(conf.cpu().numpy().reshape(-1))
+                probs = self.torch.softmax(logits, dim=-1).cpu().numpy()
+                for j, start in enumerate(chunk):
+                    valid = min(timestep, frames - start)
+                    if valid <= 0:
+                        continue
+                    weight[start : start + valid] += probs[j, :valid]
+                    cover[start : start + valid] += 1
 
+        labels = weight.argmax(axis=1)
+        confidence = np.divide(
+            weight.max(axis=1),
+            cover,
+            out=np.zeros(frames, dtype=np.float32),
+            where=cover > 0,
+        )
+        probs = np.divide(
+            weight,
+            cover[:, None],
+            out=np.zeros_like(weight),
+            where=cover[:, None] > 0,
+        )
         return (
-            np.concatenate(labels)[:frames].astype(int).tolist(),
-            np.concatenate(confidence)[:frames].astype(float).tolist(),
+            labels.astype(int).tolist(),
+            np.clip(confidence, 0.0, 1.0).tolist(),
+            probs,
         )
 
 
@@ -151,10 +198,12 @@ def analyze(audio: Path, duration: float | None, progress) -> AnalyzeResult:
         progress(0.12)
         beats, downbeats = engine.beats(signal, sample_rate)
         progress(0.35)
-        labels, confidence = engine.chords(signal, sample_rate)
+        labels, confidence, probs = engine.chords(signal, sample_rate)
         progress(0.82)
 
-    chords = segments_from_frames(labels, confidence, FRAME_SECONDS, total)
+    chords = segments_from_frames(
+        labels, confidence, FRAME_SECONDS, total, probs=probs, merge_seconds=0.3
+    )
     if not chords:
         raise RuntimeError("BTC returned no chord segments")
     tempo = _tempo(beats)

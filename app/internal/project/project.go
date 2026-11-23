@@ -85,6 +85,8 @@ func New(title string) *Project {
 
 // RebuildBars refreshes bars from the cached downbeats and chords.
 func (p *Project) RebuildBars() {
+	p.Chords = score.SnapToBeats(p.Beats, p.Chords, 0.15)
+	p.Downbeats = score.StabilizeDownbeats(p.Beats, p.Downbeats, p.Duration)
 	p.Bars = score.BuildBars(p.Downbeats, p.Chords, p.Duration)
 }
 

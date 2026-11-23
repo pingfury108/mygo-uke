@@ -21,6 +21,7 @@ class ChordSegment(BaseModel):
     end: float
     label: str
     conf: float = Field(ge=0, le=1)
+    candidates: list[str] = Field(default_factory=list)
 
 
 class Section(BaseModel):

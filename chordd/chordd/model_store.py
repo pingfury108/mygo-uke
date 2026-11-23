@@ -8,11 +8,12 @@ import shutil
 import urllib.request
 from pathlib import Path
 
+BTC_WEIGHTS_NAME = "btc_model_best.pth"
 BTC_WEIGHTS_URL = (
-    "https://raw.githubusercontent.com/jayg996/BTC-ISMIR19/master/test/"
-    "btc_model_large_voca.pt"
+    "https://raw.githubusercontent.com/ptnghia-j/ChordMini/main/"
+    "checkpoints/btc_model_best.pth"
 )
-BTC_WEIGHTS_SHA256 = "1673d23f8f9a55ae7f9e8b80a51da616debb22675b8d8b67ea6ce0ef37b0ab51"
+BTC_WEIGHTS_SHA256 = "e0a12ca6d881f81e01dfb459b4836ec7dac8d8f87b0170a412b5807256b3a1fc"
 
 
 def model_root() -> Path:
@@ -37,7 +38,7 @@ def ensure_btc_weights() -> Path:
             raise RuntimeError(f"CHORDD_BTC_WEIGHTS does not exist: {path}")
         return path
 
-    path = model_root() / "btc_model_large_voca.pt"
+    path = model_root() / BTC_WEIGHTS_NAME
     if path.is_file() and sha256_file(path) == BTC_WEIGHTS_SHA256:
         return path
 

@@ -153,6 +153,29 @@ func (a *app) chordModal(c *ui.Context) {
 			bar := scoreBarAt(a, a.chordBar)
 			title := fmt.Sprintf("第 %d 小节", a.chordBar+1)
 			modalTitle(c, title+" · 选择和弦", "点一下替换，谱面和时间轴会立刻重排")
+			if len(bar.Candidates) > 0 {
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					label(c, "识别候选", 9.5, pal.muted, 600)
+					for _, name := range bar.Candidates {
+						candidate := name
+						b := ui.ButtonBase(c).Height(28).Radius(7).Center().Label(candidate).FocusRing(false).
+							Background(pal.card).Border(1, pal.line)
+						if b.Hovered() {
+							b.Background(pal.warnBG)
+						}
+						b.OnClick(func() {
+							a.setBarChord(a.chordBar, candidate)
+							a.toast(c, "已切换候选", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, candidate))
+							a.modal = modalNone
+						})
+						b.Children(func() {
+							label(c, candidate, 10.5, pal.text, 650)
+						})
+					}
+					ui.Box(c).Grow(1)
+					mono(c, fmt.Sprintf("置信度 %.0f%%", bar.Conf*100), 8.5, pal.faint)
+				})
+			}
 			grid := ui.Grid(c).FillWidth().Columns(5).Gap(6)
 			grid.Children(func() {
 				for _, name := range []string{

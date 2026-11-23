@@ -45,6 +45,23 @@ _QUALITY_SUFFIX = {
 
 _SUFFIX_QUALITY = {value: key for key, value in _QUALITY_SUFFIX.items()}
 
+_SIMPLE_QUALITY = {
+    "min": "min",
+    "maj": "maj",
+    "dim": "min",
+    "aug": "maj",
+    "min6": "min",
+    "maj6": "maj",
+    "min7": "min7",
+    "minmaj7": "min7",
+    "maj7": "maj7",
+    "7": "7",
+    "dim7": "min7",
+    "hdim7": "min7",
+    "sus2": "maj",
+    "sus4": "maj",
+}
+
 _INTERVALS = {
     "maj": (0, 4, 7),
     "min": (0, 3, 7),
@@ -73,6 +90,16 @@ def label_for_index(index: int) -> str | None:
     root = ROOTS[index // 14]
     quality = QUALITIES[index % 14]
     return root + _QUALITY_SUFFIX[quality]
+
+
+def simple_label(label: str) -> str:
+    """Fold extensions into the five qualities the editor exposes."""
+    parsed = parse_label(label)
+    if parsed is None:
+        return label
+    root, quality = parsed
+    quality = _SIMPLE_QUALITY.get(quality, quality)
+    return ROOTS[root] + _QUALITY_SUFFIX[quality]
 
 
 def parse_label(label: str) -> tuple[int, str] | None:
@@ -152,6 +179,9 @@ def segments_from_frames(
     frame_seconds: float,
     duration: float,
     min_seconds: float = 0.12,
+    probs: Sequence[Sequence[float]] | None = None,
+    candidates: bool = True,
+    merge_seconds: float = 0.0,
 ) -> list[ChordSegment]:
     """Run-length encode per-frame chord ids into API chord segments."""
     if not labels:
@@ -164,22 +194,71 @@ def segments_from_frames(
     for end in range(1, len(labels) + 1):
         if end < len(labels) and labels[end] == labels[start]:
             continue
-        label = label_for_index(int(labels[start]))
+        raw = label_for_index(int(labels[start]))
+        label = simple_label(raw) if raw is not None else None
         begin_seconds = start * frame_seconds
         end_seconds = min(end * frame_seconds, duration)
         if label is not None and end_seconds - begin_seconds >= min_seconds:
             window = confidence[start:end]
             conf = sum(window) / len(window) if window else 0.5
+            alts: list[str] = []
+            if candidates and raw is not None and raw != label:
+                alts.append(raw)
+            if candidates and probs is not None:
+                window = probs[start:end]
+                if hasattr(window, "tolist"):
+                    window = window.tolist()
+                scores = [sum(row[idx] for row in window) for idx in range(170)]
+                for idx in sorted(range(170), key=lambda i: scores[i], reverse=True):
+                    alt = label_for_index(idx)
+                    if alt is None:
+                        continue
+                    alt = simple_label(alt)
+                    if alt == label or alt in alts:
+                        continue
+                    alts.append(alt)
+                    if len(alts) == 3:
+                        break
             out.append(
                 ChordSegment(
                     start=round(begin_seconds, 3),
                     end=round(end_seconds, 3),
                     label=label,
                     conf=round(max(0.0, min(1.0, conf)), 3),
+                    candidates=alts[:3],
                 )
             )
         start = end
-    return out
+    return merge_short(out, merge_seconds) if merge_seconds > 0 else out
+
+
+def merge_short(chords: list[ChordSegment], min_seconds: float = 0.3) -> list[ChordSegment]:
+    """Absorb blips shorter than min_seconds into the neighbouring chord."""
+    if len(chords) < 2:
+        return chords
+    out: list[ChordSegment] = []
+    for chord in chords:
+        if out and chord.end - chord.start < min_seconds:
+            prev = out[-1]
+            prev.end = chord.end
+            prev.conf = max(prev.conf, chord.conf)
+            for alt in chord.candidates:
+                if alt != prev.label and alt not in prev.candidates:
+                    prev.candidates.append(alt)
+            prev.candidates = prev.candidates[:3]
+            continue
+        out.append(chord)
+    if len(out) > 1 and out[0].end - out[0].start < min_seconds:
+        out[1].start = out[0].start
+        del out[0]
+    merged: list[ChordSegment] = []
+    for chord in out:
+        if merged and merged[-1].label == chord.label:
+            merged[-1].end = chord.end
+            merged[-1].conf = max(merged[-1].conf, chord.conf)
+            continue
+        merged.append(chord)
+    return merged
 
 
 def _correlation(a: Sequence[float], b: Sequence[float]) -> float:

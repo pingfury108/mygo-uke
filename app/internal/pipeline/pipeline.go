@@ -200,10 +200,11 @@ func fromResult(
 			continue
 		}
 		p.Chords = append(p.Chords, score.ChordSegment{
-			Start: start,
-			End:   end,
-			Label: chord.Label,
-			Conf:  chord.Conf,
+			Start:      start,
+			End:        end,
+			Label:      chord.Label,
+			Conf:       chord.Conf,
+			Candidates: append([]string(nil), chord.Candidates...),
 		})
 	}
 	p.RebuildBars()

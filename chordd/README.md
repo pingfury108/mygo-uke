@@ -19,7 +19,7 @@ CHORDD_ANALYZER=beat-this uv run uvicorn chordd.main:app --port 8790
 真实分析器在 `chordd/real.py`：
 
 - `beat_this` 出 `tempo / beats / downbeats`
-- BTC large-voca 出 `chords`
+- BTC（ChordMini 微调权重，2026）出 `chords`，50% 重叠滑窗投票
 - 调性用和弦序列 + Krumhansl 模板
 
 可调参数：
@@ -28,6 +28,7 @@ CHORDD_ANALYZER=beat-this uv run uvicorn chordd.main:app --port 8790
 CHORDD_ANALYZER=beat-this      启用真实分析器
 CHORDD_TORCH_THREADS=4         torch 线程数
 CHORDD_BTC_BATCH=8             BTC 分块批大小
+CHORDD_BTC_OVERLAP=0.5         相邻 108 帧窗口的重叠比例
 CHORDD_DEVICE=cpu              torch 设备
 CHORDD_MODEL_DIR=...           模型缓存目录，默认 ~/.cache/chordd/models
 CHORDD_BTC_WEIGHTS=...         直接指定 BTC 权重

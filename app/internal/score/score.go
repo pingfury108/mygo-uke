@@ -10,12 +10,13 @@ import (
 
 // ChordSegment is one chord heard over time, in seconds.
 type ChordSegment struct {
-	Start    float64 `json:"start"`
-	End      float64 `json:"end"`
-	Label    string  `json:"label"`
-	Conf     float64 `json:"conf"`
-	AltLabel string  `json:"altLabel,omitempty"`
-	Approx   bool    `json:"approx,omitempty"`
+	Start      float64  `json:"start"`
+	End        float64  `json:"end"`
+	Label      string   `json:"label"`
+	Conf       float64  `json:"conf"`
+	AltLabel   string   `json:"altLabel,omitempty"`
+	Candidates []string `json:"candidates,omitempty"`
+	Approx     bool     `json:"approx,omitempty"`
 }
 
 // Bar is one downbeat-delimited measure. Chords holds one label, or two
@@ -25,6 +26,7 @@ type Bar struct {
 	Start       float64  `json:"start"`
 	End         float64  `json:"end"`
 	Chords      []string `json:"chords"`
+	Candidates  []string `json:"candidates,omitempty"`
 	Conf        float64  `json:"conf"`
 	NeedsReview bool     `json:"needsReview,omitempty"`
 	Manual      bool     `json:"manual,omitempty"`
@@ -60,6 +62,131 @@ func BuildBars(downbeats []float64, chords []ChordSegment, duration float64) []B
 		bars[i].I = i
 	}
 	return bars
+}
+
+// StabilizeDownbeats repairs a downbeat track that collapsed into
+// near-beat clusters, which happens on intros with no clear pulse. It only
+// rebuilds the grid when most downbeats already agree on one bar length and
+// enough of the track disagrees with it; a healthy track is returned as is.
+func StabilizeDownbeats(beats, downbeats []float64, duration float64) []float64 {
+	if len(beats) < 8 || len(downbeats) < 4 {
+		return downbeats
+	}
+	idx := make([]int, 0, len(downbeats))
+	for _, downbeat := range downbeats {
+		i := nearestBeat(beats, downbeat)
+		if len(idx) == 0 || idx[len(idx)-1] != i {
+			idx = append(idx, i)
+		}
+	}
+	if len(idx) < 4 {
+		return downbeats
+	}
+
+	histogram := map[int]int{}
+	for i := 1; i < len(idx); i++ {
+		if gap := idx[i] - idx[i-1]; gap >= 2 && gap <= 8 {
+			histogram[gap]++
+		}
+	}
+	barBeats, votes := 0, 0
+	for gap, count := range histogram {
+		if count > votes || (count == votes && gap < barBeats) {
+			barBeats, votes = gap, count
+		}
+	}
+	total := len(idx) - 1
+	if barBeats == 0 || votes*2 < total {
+		return downbeats
+	}
+	abnormal := 0
+	for i := 1; i < len(idx); i++ {
+		if idx[i]-idx[i-1] != barBeats {
+			abnormal++
+		}
+	}
+	if abnormal*4 <= total {
+		return downbeats
+	}
+
+	phase, hits := 0, -1
+	for candidate := 0; candidate < barBeats && candidate < len(beats); candidate++ {
+		count := 0
+		for i := candidate; i < len(beats); i += barBeats {
+			for _, downbeat := range downbeats {
+				if math.Abs(beats[i]-downbeat) <= 0.12 {
+					count++
+					break
+				}
+			}
+		}
+		if count > hits {
+			phase, hits = candidate, count
+		}
+	}
+
+	grid := make([]float64, 0, len(beats)/barBeats+1)
+	for i := phase; i < len(beats); i += barBeats {
+		grid = append(grid, beats[i])
+	}
+	if len(grid) < 3 {
+		return downbeats
+	}
+	if duration > 0 {
+		gaps := make([]float64, 0, len(beats)-1)
+		for i := 1; i < len(beats); i++ {
+			if gap := beats[i] - beats[i-1]; gap > 0.05 {
+				gaps = append(gaps, gap)
+			}
+		}
+		if len(gaps) > 0 {
+			sort.Float64s(gaps)
+			expected := duration / (float64(barBeats) * gaps[len(gaps)/2])
+			if expected > 0 && math.Abs(float64(len(grid))-expected) > expected*0.4 {
+				return downbeats
+			}
+		}
+	}
+	return grid
+}
+
+// SnapToBeats moves chord edges that sit close to a beat onto that beat.
+// Edges farther than tolerance keep their original timing.
+func SnapToBeats(beats []float64, chords []ChordSegment, tolerance float64) []ChordSegment {
+	if len(beats) < 2 || tolerance <= 0 {
+		return chords
+	}
+	out := make([]ChordSegment, len(chords))
+	copy(out, chords)
+	for i := range out {
+		start := snapBeat(beats, out[i].Start, tolerance)
+		end := snapBeat(beats, out[i].End, tolerance)
+		if end > start {
+			out[i].Start = start
+			out[i].End = end
+		}
+	}
+	return out
+}
+
+func snapBeat(beats []float64, t, tolerance float64) float64 {
+	best, distance := t, tolerance
+	for _, beat := range beats {
+		if diff := math.Abs(beat - t); diff < distance {
+			best, distance = beat, diff
+		}
+	}
+	return best
+}
+
+func nearestBeat(beats []float64, t float64) int {
+	best := 0
+	for i := 1; i < len(beats); i++ {
+		if math.Abs(beats[i]-t) < math.Abs(beats[best]-t) {
+			best = i
+		}
+	}
+	return best
 }
 
 // BarAt returns the bar holding t. Before the first downbeat it returns
@@ -145,6 +272,7 @@ func voteBar(i int, start, end float64, segs []ChordSegment) Bar {
 	}
 	weights := map[string]float64{}
 	confSum := map[string]float64{}
+	candWeight := map[string]float64{}
 	alt := map[string]string{}
 	approx := map[string]bool{}
 	firstStart := map[string]float64{}
@@ -156,6 +284,11 @@ func voteBar(i int, start, end float64, segs []ChordSegment) Bar {
 		}
 		weights[s.Label] += overlap
 		confSum[s.Label] += overlap * s.Conf
+		for _, candidate := range s.Candidates {
+			if candidate != "" && candidate != s.Label {
+				candWeight[candidate] += overlap
+			}
+		}
 		if s.AltLabel != "" && alt[s.Label] == "" {
 			alt[s.Label] = s.AltLabel
 		}
@@ -205,6 +338,32 @@ func voteBar(i int, start, end float64, segs []ChordSegment) Bar {
 		sort.SliceStable(bar.Chords[1:], func(a, b int) bool {
 			return firstStart[bar.Chords[a+1]] < firstStart[bar.Chords[b+1]]
 		})
+	}
+	type candidate struct {
+		label  string
+		weight float64
+	}
+	var candidates []candidate
+	for label, weight := range candWeight {
+		if weight < beat*0.5 {
+			continue
+		}
+		used := false
+		for _, chord := range bar.Chords {
+			if chord == label {
+				used = true
+				break
+			}
+		}
+		if !used {
+			candidates = append(candidates, candidate{label: label, weight: weight})
+		}
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].weight > candidates[j].weight
+	})
+	for i := 0; i < len(candidates) && i < 3; i++ {
+		bar.Candidates = append(bar.Candidates, candidates[i].label)
 	}
 	if bar.Conf < 0.6 {
 		bar.NeedsReview = true

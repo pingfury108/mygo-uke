@@ -17,13 +17,17 @@ def sha256_file(path: Path) -> str:
 
 
 class Cache:
-    def __init__(self, root: Path | None = None) -> None:
+    def __init__(self, root: Path | None = None, version: str | None = None) -> None:
         default = Path(os.environ.get("CHORDD_CACHE", "~/.cache/chordd")).expanduser()
         self.root = root or default
         self.root.mkdir(parents=True, exist_ok=True)
+        self.version = version or os.environ.get("CHORDD_CACHE_VERSION", "3")
+
+    def _path(self, digest: str) -> Path:
+        return self.root / f"{self.version}-{digest}.json"
 
     def get(self, digest: str) -> AnalyzeResult | None:
-        path = self.root / f"{digest}.json"
+        path = self._path(digest)
         if not path.exists():
             return None
         try:
@@ -32,7 +36,7 @@ class Cache:
             return None
 
     def put(self, digest: str, result: AnalyzeResult) -> None:
-        path = self.root / f"{digest}.json"
+        path = self._path(digest)
         tmp = path.with_suffix(".tmp")
         tmp.write_text(
             json.dumps(result.model_dump(), ensure_ascii=False, indent=2),

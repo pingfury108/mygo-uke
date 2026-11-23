@@ -400,6 +400,21 @@ func TestModalsRender(t *testing.T) {
 	}
 }
 
+func TestChordModalRendersCandidates(t *testing.T) {
+	a := newApp()
+	a.proj.Bars[0].Candidates = []string{"Gmaj7", "Bm"}
+	a.chordBar = 0
+	a.chordChoice = "G"
+	a.modal = modalChords
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	for _, name := range []string{"识别候选", "Gmaj7", "Bm"} {
+		if _, ok := tt.Find(name); !ok {
+			t.Fatalf("candidate %q did not render", name)
+		}
+	}
+}
+
 func TestSettingsModalSaves(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	t.Setenv("MYGO_UKE_SETTINGS", path)
