@@ -231,3 +231,14 @@ func TestSourceTitle(t *testing.T) {
 		t.Fatalf("normal title = %q", got)
 	}
 }
+
+func TestFromLinesKeepsCharTimes(t *testing.T) {
+	p := fromLines("test", "/tmp/test.mp4", 10, []project.Line{{
+		Start: 1, End: 3, Text: "你好",
+		CharTimes: []float64{1.1, 2.2},
+	}})
+	if len(p.Lines) != 1 || len(p.Lines[0].CharTimes) != 2 ||
+		p.Lines[0].CharTimes[0] != 1.1 || p.Lines[0].CharTimes[1] != 2.2 {
+		t.Fatalf("char times = %+v", p.Lines)
+	}
+}

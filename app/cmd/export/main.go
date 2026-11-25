@@ -17,6 +17,7 @@ func main() {
 	source := flag.String("source", "", "source video path")
 	output := flag.String("out", "out.mp4", "output mp4 path")
 	orientation := flag.Int("orientation", 0, "0 vertical, 1 horizontal")
+	quality := flag.String("quality", "original", "small, standard, or original")
 	writeSRT := flag.Bool("srt", false, "also write an SRT beside the output")
 	flag.Parse()
 	if *projectPath == "" || *source == "" {
@@ -31,7 +32,7 @@ func main() {
 	defer cancel()
 	last := -1.0
 	err = videxport.Run(
-		ctx, p, *source, *output, *orientation,
+		ctx, p, *source, *output, *orientation, videxport.ParseQuality(*quality),
 		func(value float64) {
 			percent := int(value * 100)
 			if percent != int(last*100) {

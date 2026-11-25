@@ -157,6 +157,30 @@ func TestRuneTimesUsesCharTimes(t *testing.T) {
 	}
 }
 
+func TestRuneTimesRejectsStuckCharTimes(t *testing.T) {
+	line := Line{
+		Start:     0,
+		End:       5,
+		Text:      "踮起脚尖提起裙边让我的手",
+		CharTimes: []float64{0, 0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2},
+	}
+	times := line.RuneTimes()
+	if len(times) != 12 {
+		t.Fatalf("times = %v", times)
+	}
+	if times[0] == times[4] {
+		t.Fatalf("stuck timing survived: %v", times)
+	}
+	for i := 1; i < len(times); i++ {
+		if times[i] < times[i-1] {
+			t.Fatalf("times are not monotonic: %v", times)
+		}
+	}
+	if got := line.TextAt(2.5); len([]rune(got)) < 4 || len([]rune(got)) > 8 {
+		t.Fatalf("TextAt(2.5) = %q", got)
+	}
+}
+
 func TestLineChordSpansCoverCharacterRanges(t *testing.T) {
 	p := New("test")
 	p.Lines = []Line{{
@@ -310,6 +334,64 @@ func TestMergeReanalyzeWithoutChartKeepsEdits(t *testing.T) {
 	merged := MergeReanalyze(edited, built)
 	if len(merged.Lines) != 1 || merged.Lines[0].Text != "手动字幕" {
 		t.Fatalf("lines = %+v", merged.Lines)
+	}
+}
+
+func TestMergeReanalyzeKeepsRebuiltChartSnapshot(t *testing.T) {
+	edited := New("test")
+	edited.Duration = 8
+	edited.LinesEdited = true
+	edited.Lines = []Line{{
+		Start: 5, End: 8, Text: "第二句",
+		Chords: []ChordMark{{At: 0, Label: "C"}},
+	}}
+	edited.Chords = []score.ChordSegment{{Start: 5, End: 8, Label: "C", Source: "chart"}}
+	edited.ChartLines = []ChartLine{{
+		Lyrics: "第二句",
+		Chords: []ChordMark{{At: 0, Label: "C"}},
+	}}
+
+	built := New("test")
+	built.Duration = 8
+	built.Lines = []Line{
+		{Start: 0, End: 5, Text: "第一句", Chords: []ChordMark{{At: 0, Label: "F"}}},
+		{Start: 5, End: 8, Text: "第二句", Chords: []ChordMark{{At: 0, Label: "C"}}},
+	}
+	built.Chords = []score.ChordSegment{
+		{Start: 0, End: 5, Label: "F", Source: "chart"},
+		{Start: 5, End: 8, Label: "C", Source: "chart"},
+	}
+	built.ChartLines = []ChartLine{
+		{Lyrics: "第一句", Chords: []ChordMark{{At: 0, Label: "F"}}},
+		{Lyrics: "第二句", Chords: []ChordMark{{At: 0, Label: "C"}}},
+	}
+	built.ChartSnapshot = ChartSnapshotVersion
+
+	merged := MergeReanalyze(edited, built)
+	if len(merged.ChartLines) != 2 || merged.ChartLines[0].Lyrics != "第一句" {
+		t.Fatalf("stale snapshot overwrote rebuilt chart: %+v", merged.ChartLines)
+	}
+	if merged.ChartSnapshot != ChartSnapshotVersion {
+		t.Fatalf("snapshot version = %d", merged.ChartSnapshot)
+	}
+}
+
+func TestMergeKeepsSnapshotWhenImportHasNoChart(t *testing.T) {
+	edited := New("test")
+	edited.LinesEdited = true
+	edited.Lines = []Line{{
+		Start: 0, End: 3, Text: "手动字幕",
+		Chords: []ChordMark{{At: 0, Label: "F"}},
+	}}
+	edited.Chords = []score.ChordSegment{{Start: 0, End: 3, Label: "F", Source: "chart"}}
+	edited.ChartLines = []ChartLine{{Lyrics: "手动字幕", Chords: []ChordMark{{At: 0, Label: "F"}}}}
+
+	built := New("test")
+	built.Lines = []Line{{Start: 5, End: 8, Text: "新转写"}}
+
+	merged := MergeReanalyze(edited, built)
+	if len(merged.ChartLines) != 1 || merged.ChartLines[0].Lyrics != "手动字幕" {
+		t.Fatalf("chart snapshot lost: %+v", merged.ChartLines)
 	}
 }
 

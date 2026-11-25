@@ -4,10 +4,26 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"mygo-uke/internal/asr"
 	"mygo-uke/internal/sheet"
 )
+
+// asrSingingEndWindowMS is longer than the server's 800ms speech default.
+// Singing phrases run long; a short window splits them and can drop the
+// leading phrase of a chart line.
+const asrSingingEndWindowMS = 2000
+
+func asrEndWindow() int {
+	value := asrSingingEndWindowMS
+	if raw := os.Getenv("MYGO_UKE_ASR_END_WINDOW"); raw != "" {
+		if ms, err := strconv.Atoi(raw); err == nil && ms > 0 {
+			value = ms
+		}
+	}
+	return value
+}
 
 type settings struct {
 	VolcanoAPIKey     string `json:"volcanoApiKey"`
@@ -93,10 +109,11 @@ func loadSettings() settings {
 
 func (s settings) asrConfig() asr.Config {
 	return asr.Config{
-		APIKey:     s.VolcanoAPIKey,
-		WSURL:      s.VolcanoWSURL,
-		ResourceID: s.VolcanoResourceID,
-		Model:      s.VolcanoModel,
+		APIKey:        s.VolcanoAPIKey,
+		WSURL:         s.VolcanoWSURL,
+		ResourceID:    s.VolcanoResourceID,
+		Model:         s.VolcanoModel,
+		EndWindowSize: asrEndWindow(),
 	}
 }
 

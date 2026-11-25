@@ -125,6 +125,9 @@ func Chords(lines []TimedLine, duration float64) []score.ChordSegment {
 
 // Apply replaces the project's lyric and chord timeline with the chart.
 func Apply(p *project.Project, s *Sheet) {
+	if p == nil || s == nil {
+		return
+	}
 	timed := Align(s, p.Lines, p.Duration)
 	if len(timed) == 0 {
 		return
@@ -148,6 +151,14 @@ func Apply(p *project.Project, s *Sheet) {
 		p.LinesEdited = true
 		p.Warnings = nil
 	}
+	p.ChartLines = make([]project.ChartLine, 0, len(s.Lines))
+	for _, line := range s.Lines {
+		p.ChartLines = append(p.ChartLines, project.ChartLine{
+			Lyrics: line.Lyrics,
+			Chords: append([]project.ChordMark(nil), line.Chords...),
+		})
+	}
+	p.ChartSnapshot = project.ChartSnapshotVersion
 	if chords := Chords(timed, p.Duration); len(chords) > 0 {
 		p.Chords = chords
 	}
@@ -231,6 +242,22 @@ func applyGrid(p *project.Project, s *Sheet, lines []TimedLine) {
 func FromProject(p *project.Project) *Sheet {
 	if p == nil || !p.HasChartChords() {
 		return nil
+	}
+	if len(p.ChartLines) > 0 {
+		lines := make([]Line, 0, len(p.ChartLines))
+		for _, line := range p.ChartLines {
+			lines = append(lines, Line{
+				Lyrics: line.Lyrics,
+				Chords: chordList(append([]project.ChordMark(nil), line.Chords...)),
+			})
+		}
+		return &Sheet{
+			Key:           p.Key,
+			Capo:          p.Capo,
+			BPM:           p.Tempo,
+			TimeSignature: p.TimeSignature,
+			Lines:         lines,
+		}
 	}
 	type item struct {
 		start float64
@@ -357,6 +384,7 @@ func anchors(sheetLines []Line, asr []project.Line, duration float64) []span {
 	}
 
 	fillChordOnlySpans(sheetLines, out, duration)
+	fillLeadingSpans(sheetLines, out)
 	normalizeSpans(out, duration)
 	fillLineTimes(sheetLines, out, chart, pairs, asrChars)
 	return out
@@ -393,39 +421,29 @@ func timelineChars(lines []Line, asr []project.Line) ([]chartChar, []asrChar) {
 	}
 	var spoken []asrChar
 	for _, line := range asr {
-		runes := []rune(compact(line.Text))
+		runes := []rune(line.Text)
 		if len(runes) == 0 || line.End <= line.Start {
 			continue
 		}
-		if len(line.CharTimes) == len([]rune(line.Text)) {
-			var timed []struct {
-				r     rune
-				start float64
-			}
-			for i, r := range []rune(line.Text) {
-				if unicode.IsLetter(r) || unicode.IsDigit(r) {
-					timed = append(timed, struct {
-						r     rune
-						start float64
-					}{r: unicode.ToLower(r), start: line.CharTimes[i]})
-				}
-			}
-			for i, item := range timed {
-				end := line.End
-				if i+1 < len(timed) && timed[i+1].start > item.start {
-					end = timed[i+1].start
-				}
-				spoken = append(spoken, asrChar{r: item.r, start: item.start, end: end})
-			}
-			continue
+		times := line.RuneTimes()
+		var timed []struct {
+			r     rune
+			start float64
 		}
-		step := (line.End - line.Start) / float64(len(runes))
 		for i, r := range runes {
-			spoken = append(spoken, asrChar{
-				r:     r,
-				start: line.Start + step*float64(i),
-				end:   line.Start + step*float64(i+1),
-			})
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				timed = append(timed, struct {
+					r     rune
+					start float64
+				}{r: unicode.ToLower(r), start: times[i]})
+			}
+		}
+		for i, item := range timed {
+			end := line.End
+			if i+1 < len(timed) && timed[i+1].start > item.start {
+				end = timed[i+1].start
+			}
+			spoken = append(spoken, asrChar{r: item.r, start: item.start, end: end})
 		}
 	}
 	return chart, spoken
@@ -524,6 +542,50 @@ func fillChordOnlySpans(lines []Line, out []span, duration float64) {
 	}
 }
 
+// fillLeadingSpans keeps lyric lines at the top of the chart from vanishing
+// when the ASR missed them. They take the time before the first matched line,
+// so a missing first phrase still appears instead of leaving a blank intro.
+func fillLeadingSpans(lines []Line, out []span) {
+	first := -1
+	for i, line := range lines {
+		if strings.TrimSpace(line.Lyrics) == "" {
+			continue
+		}
+		if out[i].start >= 0 {
+			first = i
+			break
+		}
+	}
+	if first <= 0 {
+		return
+	}
+	var missing []int
+	total := 0
+	for i := 0; i < first; i++ {
+		if out[i].start >= 0 || strings.TrimSpace(lines[i].Lyrics) == "" {
+			continue
+		}
+		missing = append(missing, i)
+		total += max(1, len([]rune(compact(lines[i].Lyrics))))
+	}
+	if len(missing) == 0 {
+		return
+	}
+	end := out[first].start
+	if end <= 0 {
+		return
+	}
+	cursor := 0.0
+	covered := 0
+	for _, i := range missing {
+		weight := max(1, len([]rune(compact(lines[i].Lyrics))))
+		covered += weight
+		next := end * float64(covered) / float64(total)
+		out[i] = span{start: round(cursor), end: round(next)}
+		cursor = next
+	}
+}
+
 func normalizeSpans(out []span, duration float64) {
 	last := -1
 	for i := range out {
@@ -602,7 +664,7 @@ func interpolateTimes(text string, sp span, assigned []float64) []float64 {
 		case prev >= 0:
 			times[i] = times[prev] + (sp.end-times[prev])/float64(max(1, len(runes)-1-prev))
 		case next >= 0:
-			times[i] = sp.start
+			times[i] = sp.start + (times[next]-sp.start)*float64(i)/float64(next)
 		default:
 			times[i] = sp.start
 		}

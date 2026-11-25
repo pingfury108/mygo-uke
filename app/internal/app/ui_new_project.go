@@ -150,7 +150,7 @@ func (a *app) createNewProject() {
 		return
 	}
 	a.sheetErr = ""
-	a.startJob(video, true, chart, origin)
+	a.startJob(video, true, chart, origin, chartOrigin{})
 }
 
 func (a *app) pendingChartReady() bool {

@@ -70,7 +70,7 @@ type app struct {
 	exportPath     string
 	exportNote     string
 	exportSRT      bool
-	exportFormat   int
+	exportQuality  int
 	chordBar       int
 	chordChoice    string
 	lineIndex      int
@@ -85,6 +85,7 @@ type app struct {
 	jobSource  string
 	jobChart   *sheet.Sheet
 	jobOrigin  chartOrigin
+	jobRestore chartOrigin
 	analysisAt time.Time
 
 	asrConfig     asr.Config
@@ -193,6 +194,7 @@ func newApp() *app {
 		revealBar:     -1,
 		chordCursor:   -1,
 		exportSRT:     false,
+		exportQuality: defaultExportQuality,
 		asrConfig:     s.asrConfig(),
 		settings:      s,
 		sheetDispatch: mygo.RunOnMain,

@@ -15,6 +15,8 @@ import (
 	"mygo-uke/internal/project"
 )
 
+const defaultExportQuality = int(videxport.QualityOriginal)
+
 func (a *app) startExport(c *ui.Context) {
 	if a.exportRunning {
 		return
@@ -30,6 +32,7 @@ func (a *app) startExport(c *ui.Context) {
 	}
 	name := exportName(a.proj.Title, a.orientation)
 	orientation := a.orientation
+	quality := videxport.Quality(a.exportQuality)
 	writeSRT := a.exportSRT
 	p := a.proj
 
@@ -66,7 +69,7 @@ func (a *app) startExport(c *ui.Context) {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 			a.exportCancel = cancel
 			a.invalidate()
-			go a.runExport(ctx, p, source, path, orientation, writeSRT)
+			go a.runExport(ctx, p, source, path, orientation, quality, writeSRT)
 		})
 	}()
 }
@@ -76,6 +79,7 @@ func (a *app) runExport(
 	p *project.Project,
 	source, path string,
 	orientation int,
+	quality videxport.Quality,
 	writeSRT bool,
 ) {
 	started := time.Now()
@@ -89,7 +93,7 @@ func (a *app) runExport(
 	}()
 	last := -1.0
 	err := videxport.Run(
-		ctx, p, source, path, orientation,
+		ctx, p, source, path, orientation, quality,
 		func(value float64) {
 			if value < 1 && value-last < 0.01 {
 				return

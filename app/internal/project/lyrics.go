@@ -196,14 +196,61 @@ func singable(runes []rune) int {
 // punctuation get no time of their own and appear with the previous rune.
 func (l Line) RuneTimes() []float64 {
 	runes := []rune(l.Text)
-	times := make([]float64, len(runes))
 	if len(runes) == 0 {
-		return times
+		return nil
 	}
-	if len(l.CharTimes) == len(runes) {
-		copy(times, l.CharTimes)
-		return times
+	if len(l.CharTimes) == len(runes) && l.timesUsable(runes) {
+		return append([]float64(nil), l.CharTimes...)
 	}
+	return l.proportionalTimes(runes)
+}
+
+// timesUsable rejects the degenerate timings the ASR service sometimes
+// returns: long plateaus where several sung characters share one timestamp,
+// or too few distinct timestamps for the line. Those would make the karaoke
+// highlight jump while the singer keeps going.
+func (l Line) timesUsable(runes []rune) bool {
+	if l.End <= l.Start {
+		return false
+	}
+	distinct := make(map[int64]bool)
+	singable := 0
+	stuck, maxStuck := 0, 0
+	prev := math.Inf(-1)
+	last := math.Inf(-1)
+	for i, r := range runes {
+		value := l.CharTimes[i]
+		if math.IsNaN(value) || math.IsInf(value, 0) ||
+			value < l.Start-0.05 || value > l.End+0.05 {
+			return false
+		}
+		if value < last-1e-6 {
+			return false
+		}
+		last = value
+		if timingWeight(r) <= 0 {
+			continue
+		}
+		singable++
+		distinct[int64(math.Round(value*1000))] = true
+		if prev > math.Inf(-1) && math.Abs(value-prev) < 1e-6 {
+			stuck++
+		} else {
+			stuck = 1
+		}
+		if stuck > maxStuck {
+			maxStuck = stuck
+		}
+		prev = value
+	}
+	if singable == 0 || maxStuck > 3 {
+		return false
+	}
+	return float64(len(distinct))/float64(singable) >= 0.6
+}
+
+func (l Line) proportionalTimes(runes []rune) []float64 {
+	times := make([]float64, len(runes))
 	total := 0.0
 	for _, r := range runes {
 		total += timingWeight(r)
@@ -500,6 +547,11 @@ func (p *Project) RebuildChartChords() {
 func (p *Project) HasChartChords() bool {
 	if p == nil {
 		return false
+	}
+	for _, line := range p.ChartLines {
+		if len(line.Chords) > 0 {
+			return true
+		}
 	}
 	for _, line := range p.Lines {
 		if len(line.Chords) > 0 {

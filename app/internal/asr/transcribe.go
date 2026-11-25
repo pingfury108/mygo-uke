@@ -477,6 +477,8 @@ func fillRuneTimes(runes []rune, times []float64, start, end float64) []float64 
 			times[i] = times[prev] + (times[next]-times[prev])*float64(i-prev)/float64(next-prev)
 		case prev >= 0:
 			times[i] = times[prev] + (end-times[prev])/float64(max(1, len(runes)-1-prev))
+		case next >= 0:
+			times[i] = start + (times[next]-start)*float64(i)/float64(next)
 		default:
 			times[i] = first
 		}

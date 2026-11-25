@@ -180,6 +180,92 @@ func TestAlignUsesASRSpans(t *testing.T) {
 	}
 }
 
+func TestAlignKeepsLeadingLineWhenASRMissesOpeningWords(t *testing.T) {
+	chart := &Sheet{Lines: []Line{
+		{Lyrics: "踮起脚尖 提起裙边 让我的手轻轻搭在你的肩"},
+		{Lyrics: "舞步翩翩 呼吸浅浅 爱的华尔兹多甜"},
+	}}
+	asr := []project.Line{
+		{Start: 2.35, End: 4.63, Text: "你脚尖"},
+		{Start: 4.63, End: 7.55, Text: "提裙边"},
+		{Start: 7.55, End: 13.31, Text: "让我的手轻轻搭在你的肩"},
+		{Start: 13.31, End: 22.07, Text: "舞步翩翩，呼吸浅浅，爱的华尔兹的天"},
+	}
+
+	lines := Align(chart, asr, 72.87)
+	if len(lines) != 2 {
+		t.Fatalf("lines = %d, want 2: %+v", len(lines), lines)
+	}
+	if lines[0].Lyrics != chart.Lines[0].Lyrics {
+		t.Fatalf("leading line dropped: %+v", lines)
+	}
+	if lines[0].Start > 4 || math.Abs(lines[0].End-13.31) > 0.001 {
+		t.Fatalf("leading line span = %.3f-%.3f", lines[0].Start, lines[0].End)
+	}
+}
+
+func TestAlignFillsLeadingLineWithoutASRMatch(t *testing.T) {
+	chart := &Sheet{Lines: []Line{
+		{Lyrics: "踮起脚尖 提起裙边 让我的手轻轻搭在你的肩"},
+		{Lyrics: "舞步翩翩 呼吸浅浅 爱的华尔兹多甜"},
+	}}
+	asr := []project.Line{
+		{Start: 13.31, End: 22.07, Text: "舞步翩翩，呼吸浅浅，爱的华尔兹的天"},
+	}
+
+	lines := Align(chart, asr, 72.87)
+	if len(lines) != 2 {
+		t.Fatalf("lines = %d, want 2: %+v", len(lines), lines)
+	}
+	if lines[0].Lyrics != chart.Lines[0].Lyrics {
+		t.Fatalf("leading line dropped: %+v", lines)
+	}
+	if math.Abs(lines[0].Start) > 0.001 || math.Abs(lines[0].End-13.31) > 0.001 {
+		t.Fatalf("leading line span = %.3f-%.3f", lines[0].Start, lines[0].End)
+	}
+}
+
+func TestAlignKeepsAllChartLinesFor570(t *testing.T) {
+	chart := &Sheet{Lines: []Line{
+		{Lyrics: "踮起脚尖 提起裙边 让我的手轻轻搭在你的肩"},
+		{Lyrics: "舞步翩翩 呼吸浅浅 爱的华尔兹多甜"},
+		{Lyrics: "一步一步向你靠近 一圈一圈贴我的心 就像夜空舞蹈的流星"},
+		{Lyrics: "一步一步抱我更近 一圈一圈更确定 要陪你旋转不停"},
+		{Lyrics: "没有谁能比你更合我的拍 没有谁能代替你给我依赖"},
+		{Lyrics: "甜蜜呀幸福啊 圈圈圆圆转出来 没有谁能比你更合我的拍"},
+		{Lyrics: "没有谁能给我你给过的爱 我们的未来 是最美好的存在"},
+	}}
+	asr := []project.Line{
+		{Start: 2.35, End: 4.63, Text: "你脚尖"},
+		{Start: 4.63, End: 7.55, Text: "提裙边"},
+		{Start: 7.55, End: 13.31, Text: "让我的手轻轻搭在你的肩"},
+		{Start: 13.31, End: 22.07, Text: "舞步翩翩，呼吸浅浅，爱的华尔兹的天"},
+		{Start: 24.51, End: 26.59, Text: "一步向你靠近"},
+		{Start: 26.59, End: 29.47, Text: "一圈一圈贴我的心"},
+		{Start: 29.47, End: 34.79, Text: "就像夜空舞蹈的流星"},
+		{Start: 34.79, End: 37.71, Text: "一步一步把我跟近"},
+		{Start: 37.71, End: 40.59, Text: "一圈一圈更确定"},
+		{Start: 40.59, End: 43.95, Text: "要陪你旋转不停"},
+		{Start: 45.66, End: 48.62, Text: "没有谁能比你更合我的拍"},
+		{Start: 48.62, End: 51.54, Text: "没有谁能代替你给我依赖"},
+		{Start: 51.54, End: 57.26, Text: "甜蜜呀，幸福啊，圈圈圆圆转出来"},
+		{Start: 57.26, End: 60.18, Text: "没有谁能比你更合我的拍"},
+		{Start: 60.18, End: 62.94, Text: "没有谁能给我你给我的爱"},
+		{Start: 62.94, End: 64.82, Text: "我们的未来"},
+		{Start: 65.75, End: 69.11, Text: "是最美好的存在"},
+	}
+
+	lines := Align(chart, asr, 72.87)
+	if len(lines) != len(chart.Lines) {
+		t.Fatalf("lines = %d, want %d: %+v", len(lines), len(chart.Lines), lines)
+	}
+	for i := range chart.Lines {
+		if lines[i].Lyrics != chart.Lines[i].Lyrics {
+			t.Fatalf("line %d = %q, want %q", i, lines[i].Lyrics, chart.Lines[i].Lyrics)
+		}
+	}
+}
+
 func TestAlignSpansLinesAcrossUtterancesAndDropsUnsungRepeat(t *testing.T) {
 	chart := &Sheet{Lines: []Line{
 		{Lyrics: "好想能看到 你嘴角微笑 最好在下一秒 好想能听到 你轻声歌唱"},
@@ -355,6 +441,52 @@ func TestFromProjectKeepsChordOnlySections(t *testing.T) {
 	if chart.Lines[3].Lyrics != "" || len(chart.Lines[3].Chords) != 1 ||
 		chart.Lines[3].Chords[0].Label != "C" {
 		t.Fatalf("outro = %+v", chart.Lines[3])
+	}
+}
+
+func TestInterpolateTimesFillsLeadingGap(t *testing.T) {
+	times := interpolateTimes("好想能看到", span{start: 10, end: 12.5}, []float64{-1, -1, -1, -1, 12})
+	if len(times) != 5 || times[0] != 10 || times[4] != 12 {
+		t.Fatalf("times = %v", times)
+	}
+	for i := 1; i < len(times); i++ {
+		if times[i] <= times[i-1] {
+			t.Fatalf("leading gap was not spread: %v", times)
+		}
+	}
+}
+
+func TestApplyStoresFullChartLines(t *testing.T) {
+	p := project.New("test")
+	p.Duration = 8
+	p.Lines = []project.Line{
+		{Start: 0, End: 4, Text: "第一句"},
+		{Start: 4, End: 8, Text: "第二句"},
+	}
+	chart := &Sheet{Lines: []Line{
+		{Lyrics: "第一句", Chords: marks("F")},
+		{Lyrics: "第二句", Chords: marks("G")},
+	}}
+	Apply(p, chart)
+	if len(p.ChartLines) != 2 || p.ChartLines[0].Lyrics != "第一句" {
+		t.Fatalf("chart lines = %+v", p.ChartLines)
+	}
+	if p.ChartSnapshot != project.ChartSnapshotVersion {
+		t.Fatalf("chart snapshot = %d, want %d", p.ChartSnapshot, project.ChartSnapshotVersion)
+	}
+}
+
+func TestFromProjectPrefersStoredChartLines(t *testing.T) {
+	p := project.New("test")
+	p.Duration = 8
+	p.Lines = []project.Line{{Start: 4, End: 8, Text: "第二句"}}
+	p.ChartLines = []project.ChartLine{
+		{Lyrics: "第一句", Chords: []project.ChordMark{{At: 0, Label: "F"}}},
+		{Lyrics: "第二句", Chords: []project.ChordMark{{At: 0, Label: "G"}}},
+	}
+	sheet := FromProject(p)
+	if sheet == nil || len(sheet.Lines) != 2 || sheet.Lines[0].Lyrics != "第一句" {
+		t.Fatalf("sheet = %+v", sheet)
 	}
 }
 

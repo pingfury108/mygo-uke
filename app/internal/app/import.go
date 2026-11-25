@@ -74,10 +74,44 @@ func (a *app) startReanalyze(c *ui.Context) {
 		a.toast(c, "无法重新转写", "示例工程没有源文件，请先导入视频")
 		return
 	}
-	a.startJob(source, false, sheet.FromProject(a.proj), chartOrigin{})
+	chart, restore := a.chartForReanalyze()
+	a.startJob(source, false, chart, chartOrigin{}, restore)
 }
 
-func (a *app) startJob(source string, importing bool, chart *sheet.Sheet, origin chartOrigin) {
+// chartForReanalyze prefers the stored chart snapshot. Projects created
+// before chartLines existed only kept the lyric lines that matched the old
+// transcript, so the opening line of the chart may be missing; re-parsing the
+// saved text or image rebuilds it before the new transcript is aligned.
+func (a *app) chartForReanalyze() (*sheet.Sheet, chartOrigin) {
+	chart := sheet.FromProject(a.proj)
+	if a.proj == nil || a.chartSnapshotComplete() {
+		return chart, chartOrigin{}
+	}
+	if text := strings.TrimSpace(a.proj.ChartText); text != "" {
+		if parsed, err := sheet.ParseText(text); err == nil && len(parsed.Lines) > 0 {
+			return parsed, chartOrigin{}
+		}
+	}
+	if path := a.chartPath(); path != "" {
+		return chart, chartOrigin{Name: a.proj.ChartName, Path: path}
+	}
+	return chart, chartOrigin{}
+}
+
+func (a *app) chartSnapshotComplete() bool {
+	if a.proj == nil || len(a.proj.ChartLines) == 0 {
+		return false
+	}
+	return a.proj.ChartSnapshot >= project.ChartSnapshotVersion
+}
+
+func (a *app) startJob(
+	source string,
+	importing bool,
+	chart *sheet.Sheet,
+	origin chartOrigin,
+	restore chartOrigin,
+) {
 	if a.jobRunning {
 		return
 	}
@@ -88,16 +122,36 @@ func (a *app) startJob(source string, importing bool, chart *sheet.Sheet, origin
 	a.jobSource = source
 	a.jobChart = chart
 	a.jobOrigin = origin
+	a.jobRestore = restore
 	a.analysis = 0
 	a.modal = modalAnalysis
 	a.invalidate()
 
+	sheetCfg := a.settings.sheetConfig()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		var transcriber pipeline.Transcriber
 		if a.asrConfig.APIKey != "" {
 			transcriber = pipeline.ASRTranscriber{Config: a.asrConfig}
+		}
+		restoreErr := ""
+		if !importing && chartOriginReady(restore) {
+			mygo.RunOnMain(func() {
+				a.jobStage = "恢复曲谱"
+				a.invalidate()
+			})
+			parsed, err := parseChartOrigin(ctx, restore, sheetCfg)
+			switch {
+			case err != nil:
+				restoreErr = err.Error()
+			case parsed != nil && len(parsed.Lines) > 0:
+				chart = parsed
+				mygo.RunOnMain(func() {
+					a.jobChart = parsed
+					a.invalidate()
+				})
+			}
 		}
 		built, path, err := pipeline.Import(
 			ctx,
@@ -125,6 +179,12 @@ func (a *app) startJob(source string, importing bool, chart *sheet.Sheet, origin
 			}
 			if !importing && a.proj != nil {
 				built = mergeAfterReanalyze(a.proj, built)
+				if restoreErr != "" {
+					// Keep the failed snapshot eligible so a later run retries
+					// the stored chart instead of accepting the partial lines.
+					built.ChartSnapshot = 0
+					built.Warnings = append(built.Warnings, "曲谱快照恢复失败："+restoreErr)
+				}
 				if a.projPath != "" {
 					if saveErr := project.Save(a.projPath, built); saveErr != nil {
 						a.jobErr = "保存重新转写结果失败：" + saveErr.Error()
@@ -185,7 +245,38 @@ func mergeAfterReanalyze(edited, built *project.Project) *project.Project {
 }
 
 func (a *app) retryJob() {
-	a.startJob(a.jobSource, a.jobImport, a.jobChart, a.jobOrigin)
+	a.startJob(a.jobSource, a.jobImport, a.jobChart, a.jobOrigin, a.jobRestore)
+}
+
+func chartOriginReady(origin chartOrigin) bool {
+	return origin.Text != "" || len(origin.Data) > 0 || origin.Path != ""
+}
+
+// parseChartOrigin rebuilds a chart from the copy stored in the project.
+func parseChartOrigin(ctx context.Context, origin chartOrigin, cfg sheet.Config) (*sheet.Sheet, error) {
+	switch {
+	case origin.Text != "":
+		return sheet.ParseText(origin.Text)
+	case len(origin.Data) > 0:
+		if !cfg.Ready() {
+			return nil, fmt.Errorf("图片识别还没有配置，请到「设置」完成配置")
+		}
+		client, err := sheet.New(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		return client.ParseImageData(ctx, origin.Data, "image/png")
+	case origin.Path != "":
+		if !cfg.Ready() {
+			return nil, fmt.Errorf("图片识别还没有配置，请到「设置」完成配置")
+		}
+		client, err := sheet.New(ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		return client.ParseImage(ctx, origin.Path)
+	}
+	return nil, fmt.Errorf("没有可恢复的曲谱")
 }
 
 func (a *app) applyImported(p *project.Project, path string, importing bool) {

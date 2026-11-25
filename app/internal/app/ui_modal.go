@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	videxport "mygo-uke/internal/export"
 	"mygo-uke/internal/score"
 	"mygo-uke/internal/uke"
 )
@@ -50,8 +51,18 @@ func (a *app) exportModal(c *ui.Context) {
 			}
 			segment(c, formats, &a.orientation)
 		})
-		exportRow(c, "视频", "H.264 · GPU 优先，CPU 回退 · faststart")
-		exportRow(c, "音频", "AAC 192k · 原视频音轨")
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			text(c, "画质", 10, pal.muted).Width(58)
+			segment(c, []string{"小体积", "标准", "原画质"}, &a.exportQuality)
+		})
+		profile := videxport.Profile(videxport.Quality(a.exportQuality))
+		exportRow(c, "视频", fmt.Sprintf(
+			"H.264 · %s · 约 %.1f Mbps · faststart",
+			profile.Name, float64(profile.Bitrate)/1_000_000,
+		))
+		exportRow(c, "音频", fmt.Sprintf(
+			"AAC %dk · 原视频音轨", profile.AudioBitrate/1000,
+		))
 		exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
 		exportRow(c, "预计耗时", a.exportEstimate())
 		exportRow(c, "字幕", "已烧进画面 · 逐字")
@@ -285,6 +296,13 @@ func (a *app) analysisModal(c *ui.Context) {
 		if a.jobChart != nil {
 			chartDetail = fmt.Sprintf("%d 行 · %d 个和弦", len(a.jobChart.Lines), chartChordCount(a.jobChart))
 			chartStatus = "等待"
+		}
+		if chartOriginReady(a.jobRestore) {
+			chartDetail = "从工程保存的图片恢复完整曲谱 · 约 1–2 分钟"
+			chartStatus = "等待"
+			if a.jobStage == "恢复曲谱" {
+				chartStatus = "运行"
+			}
 		}
 		chartDone := a.analysis >= 1
 		stageRow(c, "3", "曲谱对齐", chartDetail, chartDone, chartStatus)

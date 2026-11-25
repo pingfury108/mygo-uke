@@ -33,7 +33,8 @@ project.json + 源视频
 |---|---|---|
 | 分辨率 | 1080×1920 | 1920×1080 |
 | 视频 | H.264 · Metal + VideoToolbox | 同左 |
-| 音频 | 源视频音轨 → AAC 192k | 同左 |
+| 画质 | 小体积 4 / 标准 9 / 原画质 12.4 Mbps | 同左 |
+| 音频 | 源视频音轨 → AAC 96/160/192k | 同左 |
 | 帧率 | 30 | 30 |
 
 竖屏叠加层：当前小节高亮、后续 1–2 个和弦、右侧尤克里里指法图；
@@ -50,12 +51,16 @@ macOS Intel，Intel Iris Plus Graphics 645，源视频 1080×1920：
 | 源视频 | 耗时 | 分段 | 输出 |
 |---|---|---|---|
 | 6 秒 | 4.2 秒 | 渲染 3.9s + 封装 0.3s | 9.7MB |
-| 36.2 秒 | 19.1 秒 | 渲染 17.9s + 封装 1.2s | 57.6MB |
+| 36.2 秒 | 19.1 秒 | 渲染 17.9s + 封装 1.2s | 57.6MB（原画质 12.4 Mbps） |
 | 6 秒 · CPU 回退 | 16.4 秒 | 渲染 15.9s + 封装 0.5s | 9.3MB |
 
 36.2 秒成片约 1.9× 实时，3 分钟视频预计约 1.5–2 分钟，远低于
 8 分钟预算。进度回调里的渲染器名称为
 `Metal (Intel(R) Iris(TM) Plus Graphics 645)`。
+
+导出默认使用“原画质”档 12.4 Mbps / AAC 192k，与引入画质档之前一致
+（渲染器默认 `0.2 bit/pixel/frame`，1080×1920@30 约 12.4 Mbps）。同样的
+70 秒竖屏视频，原画质约 110MB，标准档约 80MB，小体积档约 36MB。
 
 旧路径对照（同一台机器、同一段 36.2 秒视频）：
 
@@ -87,7 +92,7 @@ MYGO_UKE_EXPORT_DEBUG=1 # 打印渲染器、分段耗时
 ```sh
 cd app
 go run ./cmd/export -project /path/project.json -source /path/song.mp4 \
-  -out /path/out.mp4 -orientation 0 -srt
+  -out /path/out.mp4 -orientation 0 -quality original -srt
 ```
 
 真实编码集成测试：

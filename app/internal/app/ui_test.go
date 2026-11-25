@@ -85,6 +85,19 @@ func TestStudioInteractions(t *testing.T) {
 	if a.exportSRT {
 		t.Fatal("SRT should be opt-in")
 	}
+	if a.exportQuality != defaultExportQuality {
+		t.Fatalf("export quality = %d, want %d", a.exportQuality, defaultExportQuality)
+	}
+	if err := tt.Click("小体积"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.exportQuality != 0 {
+		t.Fatalf("export quality = %d, want small", a.exportQuality)
+	}
+	if !tt.HasText("约 4.0 Mbps") {
+		t.Fatal("export modal did not show the selected bitrate")
+	}
 	if err := tt.Click("取消"); err != nil {
 		t.Fatal(err)
 	}

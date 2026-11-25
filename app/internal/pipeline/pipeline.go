@@ -155,10 +155,11 @@ func fromLines(
 			continue
 		}
 		p.Lines = append(p.Lines, project.Line{
-			Start: start,
-			End:   end,
-			Text:  text,
-			Conf:  line.Conf,
+			Start:     start,
+			End:       end,
+			Text:      text,
+			CharTimes: append([]float64(nil), line.CharTimes...),
+			Conf:      line.Conf,
 		})
 	}
 	sort.SliceStable(p.Lines, func(i, j int) bool {

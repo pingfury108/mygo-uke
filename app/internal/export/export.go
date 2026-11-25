@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,12 +24,54 @@ import (
 
 const fps = 30
 
+// Quality is the export bitrate profile.
+type Quality int
+
+const (
+	QualitySmall Quality = iota
+	QualityStandard
+	QualityOriginal
+)
+
+type qualityProfile struct {
+	Name         string
+	Bitrate      int
+	AudioBitrate int
+}
+
+var qualityProfiles = [...]qualityProfile{
+	{Name: "小体积", Bitrate: 4_000_000, AudioBitrate: 96_000},
+	{Name: "标准", Bitrate: 9_000_000, AudioBitrate: 160_000},
+	{Name: "原画质", Bitrate: 12_441_600, AudioBitrate: 192_000},
+}
+
+// Profile returns the bitrate profile for q, defaulting to the original.
+func Profile(q Quality) qualityProfile {
+	if q < QualitySmall || q > QualityOriginal {
+		q = QualityOriginal
+	}
+	return qualityProfiles[q]
+}
+
+// ParseQuality reads a CLI quality name.
+func ParseQuality(value string) Quality {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "small", "low":
+		return QualitySmall
+	case "standard", "mid":
+		return QualityStandard
+	default:
+		return QualityOriginal
+	}
+}
+
 // Run exports p from source into output. orientation 0 is vertical.
 func Run(
 	ctx context.Context,
 	p *project.Project,
 	source, output string,
 	orientation int,
+	quality Quality,
 	progress func(float64),
 ) error {
 	if p == nil {
@@ -84,10 +127,13 @@ func Run(
 	_ = os.Remove(tmpVideo)
 	defer os.Remove(tmpVideo)
 	renderVideo := func(renderer renderplugin.Renderer, encoder renderplugin.Encoder) error {
+		profile := Profile(quality)
 		options := renderplugin.Options{
-			Renderer: renderer,
-			Encoder:  encoder,
-			FFmpeg:   media.FFmpegPath(),
+			Renderer:     renderer,
+			Encoder:      encoder,
+			FFmpeg:       media.FFmpegPath(),
+			Bitrate:      profile.Bitrate,
+			AudioBitrate: profile.AudioBitrate,
 			Progress: func(pr renderplugin.Progress) {
 				if debug && pr.Renderer != rendererName {
 					rendererName = pr.Renderer
@@ -130,7 +176,7 @@ func Run(
 		progress(0.92)
 	}
 	muxStarted := time.Now()
-	if err := mux(ctx, tmpVideo, source, output); err != nil {
+	if err := mux(ctx, tmpVideo, source, output, Profile(quality).AudioBitrate); err != nil {
 		return err
 	}
 	if debug {
@@ -185,11 +231,11 @@ func forcedGPU() bool {
 	return strings.EqualFold(os.Getenv("MYGO_UKE_RENDERER"), "gpu")
 }
 
-func mux(ctx context.Context, video, source, output string) error {
+func mux(ctx context.Context, video, source, output string, audioBitrate int) error {
 	tmp := output + ".mux.mp4"
 	_ = os.Remove(tmp)
 	defer os.Remove(tmp)
-	cmd := exec.CommandContext(ctx, media.FFmpegPath(), muxArgs(video, source, tmp)...)
+	cmd := exec.CommandContext(ctx, media.FFmpegPath(), muxArgs(video, source, tmp, audioBitrate)...)
 	var log bytes.Buffer
 	cmd.Stderr = &log
 	if err := cmd.Run(); err != nil {
@@ -201,7 +247,10 @@ func mux(ctx context.Context, video, source, output string) error {
 	return os.Rename(tmp, output)
 }
 
-func muxArgs(video, source, output string) []string {
+func muxArgs(video, source, output string, audioBitrate int) []string {
+	if audioBitrate <= 0 {
+		audioBitrate = 128_000
+	}
 	return []string{
 		"-nostdin", "-hide_banner", "-loglevel", "error", "-y",
 		"-i", video,
@@ -210,7 +259,7 @@ func muxArgs(video, source, output string) []string {
 		"-map", "1:a:0?",
 		"-c:v", "copy",
 		"-c:a", "aac",
-		"-b:a", "192k",
+		"-b:a", strconv.Itoa(audioBitrate/1000) + "k",
 		"-movflags", "+faststart",
 		"-shortest",
 		output,

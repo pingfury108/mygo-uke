@@ -48,7 +48,7 @@ func TestExportIntegration(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := Run(ctx, sampleProject(), source, output, orientation, nil); err != nil {
+	if err := Run(ctx, sampleProject(), source, output, orientation, QualityStandard, nil); err != nil {
 		t.Fatal(err)
 	}
 	info, err := os.Stat(output)
@@ -133,10 +133,27 @@ func TestRendererFor(t *testing.T) {
 }
 
 func TestMuxArgs(t *testing.T) {
-	args := strings.Join(muxArgs("/tmp/video.mp4", "/tmp/source.mp4", "/tmp/out.mp4"), " ")
-	for _, want := range []string{"-c:v copy", "-c:a aac", "+faststart", "-shortest"} {
+	args := strings.Join(muxArgs("/tmp/video.mp4", "/tmp/source.mp4", "/tmp/out.mp4", 128_000), " ")
+	for _, want := range []string{"-c:v copy", "-c:a aac", "-b:a 128k", "+faststart", "-shortest"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("mux args = %q, missing %q", args, want)
 		}
+	}
+}
+
+func TestQualityProfiles(t *testing.T) {
+	if Profile(QualitySmall).Bitrate >= Profile(QualityStandard).Bitrate ||
+		Profile(QualityStandard).Bitrate >= Profile(QualityOriginal).Bitrate {
+		t.Fatalf("profiles are not ordered: %+v", qualityProfiles)
+	}
+	if Profile(QualityStandard).Bitrate < 8_000_000 || Profile(QualityOriginal).Bitrate != 12_441_600 {
+		t.Fatalf("quality profiles are too low: %+v", qualityProfiles)
+	}
+	if Profile(Quality(99)).Name != "原画质" {
+		t.Fatalf("invalid quality = %+v", Profile(99))
+	}
+	if ParseQuality("original") != QualityOriginal || ParseQuality("high") != QualityOriginal ||
+		ParseQuality("small") != QualitySmall || ParseQuality("nope") != QualityOriginal {
+		t.Fatalf("ParseQuality failed")
 	}
 }

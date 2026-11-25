@@ -20,6 +20,22 @@ func TestLinesFrom(t *testing.T) {
 	}
 }
 
+func TestFillRuneTimesFillsLeadingGap(t *testing.T) {
+	times := fillRuneTimes(
+		[]rune("好想能看到"),
+		[]float64{-1, -1, -1, -1, 12},
+		10, 12.5,
+	)
+	if len(times) != 5 || times[0] != 10 || times[4] != 12 {
+		t.Fatalf("times = %v", times)
+	}
+	for i := 1; i < len(times); i++ {
+		if times[i] <= times[i-1] {
+			t.Fatalf("leading gap was not spread: %v", times)
+		}
+	}
+}
+
 func TestLinesFromKeepsLatestRevision(t *testing.T) {
 	got := linesFrom([]Utterance{
 		{Text: "今天。", StartMS: 0, EndMS: 500, Definite: false},

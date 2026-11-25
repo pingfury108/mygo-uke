@@ -18,6 +18,11 @@ import (
 
 const Version = 1
 
+// ChartSnapshotVersion marks a chartLines copy written by an importer that
+// keeps every chart line. Older copies only contain the lines that matched
+// the transcript, so they must be rebuilt from the saved chart.
+const ChartSnapshotVersion = 1
+
 // Entry is one project found in the local library.
 type Entry struct {
 	Path     string
@@ -47,8 +52,18 @@ type Project struct {
 	ChartName     string               `json:"chartName,omitempty"`
 	ChartText     string               `json:"chartText,omitempty"`
 	ChartAt       string               `json:"chartAt,omitempty"`
+	ChartLines    []ChartLine          `json:"chartLines,omitempty"`
+	ChartSnapshot int                  `json:"chartSnapshot,omitempty"`
 	Warnings      []string             `json:"warnings,omitempty"`
 	Style         Style                `json:"style"`
+}
+
+// ChartLine is one lyric line exactly as it appeared in the imported chart.
+// It stays intact even when a re-transcription drops or edits timeline lines,
+// so reanalysis can always restore the full chart.
+type ChartLine struct {
+	Lyrics string      `json:"lyrics"`
+	Chords []ChordMark `json:"chords,omitempty"`
 }
 
 // Line is one sentence of lyrics placed on the song timeline.
@@ -241,6 +256,12 @@ func mergeUserSettings(edited, built *Project) {
 	built.ChartName = edited.ChartName
 	built.ChartText = edited.ChartText
 	built.ChartAt = edited.ChartAt
+	// A fresh import may have rebuilt a fuller chart from its stored copy;
+	// only fall back to the old snapshot when the new one has no chart.
+	if len(edited.ChartLines) > 0 && len(built.ChartLines) == 0 {
+		built.ChartLines = append([]ChartLine(nil), edited.ChartLines...)
+		built.ChartSnapshot = edited.ChartSnapshot
+	}
 }
 
 func mergeManualBars(edited, built *Project) {

@@ -20,10 +20,20 @@ func TestDefaultSettingsFromEnv(t *testing.T) {
 	if cfg.Model != "bigmodel" {
 		t.Fatalf("model = %q", cfg.Model)
 	}
+	if cfg.EndWindowSize != asrSingingEndWindowMS {
+		t.Fatalf("end window = %d, want %d", cfg.EndWindowSize, asrSingingEndWindowMS)
+	}
 	sheetCfg := defaultSettings().sheetConfig()
 	if sheetCfg.BaseURL != "https://llm.example.test/v1" ||
 		sheetCfg.APIKey != "sheet-key" || sheetCfg.Model != "vision-model" {
 		t.Fatalf("sheet config = %+v", sheetCfg)
+	}
+}
+
+func TestASREndWindowOverride(t *testing.T) {
+	t.Setenv("MYGO_UKE_ASR_END_WINDOW", "2600")
+	if got := defaultSettings().asrConfig().EndWindowSize; got != 2600 {
+		t.Fatalf("end window = %d, want 2600", got)
 	}
 }
 

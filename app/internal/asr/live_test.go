@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,6 +26,11 @@ func TestTranscribeLive(t *testing.T) {
 		WSURL:      os.Getenv("MYGO_UKE_VOLCANO_WS_URL"),
 		ResourceID: os.Getenv("MYGO_UKE_VOLCANO_RESOURCE_ID"),
 		Model:      os.Getenv("MYGO_UKE_VOLCANO_MODEL"),
+	}
+	if value := os.Getenv("MYGO_UKE_ASR_END_WINDOW"); value != "" {
+		if ms, err := strconv.Atoi(value); err == nil {
+			cfg.EndWindowSize = ms
+		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()

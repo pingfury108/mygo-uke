@@ -81,6 +81,13 @@ MYGO_UKE_VOLCANO_API_KEY=... MYGO_UKE_ASR_SOURCE=/path/speech.aiff \
 - 只接受服务端返回的句级 `result.utterances[]`；没有句子时间不会伪造成整首一条。
 - `utterances` 会渐进修订同一句（起始时间相同、结束时间和文本增长），
   客户端按起始时间归组，保留最新最长版本。
+- 唱歌场景默认把 `end_window_size` 设为 2000ms；火山默认的 800ms
+  会把长句切碎，常见表现是曲谱行开头几个字整段丢失、时间从后半句才开始。
+  联调时可用 `MYGO_UKE_ASR_END_WINDOW` 对比不同窗口。
+- `project.json` 的 `chartLines` 保存曲谱原文（含未匹配上的行）。旧工程没有
+  这个字段时，重新转写会先用工程里的 `chartText` 或 `chart.png` 重建完整曲谱，
+  避免早先丢失的首句一直找不回来。
+  `chartSnapshot` 标记这份快照来自完整曲谱；没有该标记的旧快照会重建一次。
 
 ## 已知限制
 
