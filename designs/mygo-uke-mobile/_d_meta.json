@@ -1,0 +1,22 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "MyGo Uke Mobile UI": {
+      "versions": [
+        {
+          "path": "index.html",
+          "createdAt": "2026-11-24T07:39:38.567Z",
+          "status": "needs-review",
+          "viewport": {
+            "width": 1440,
+            "height": 4035
+          }
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-11-24T07:39:38.569Z",
+  "updatedAt": "2026-11-24T07:39:38.569Z"
+}

@@ -40,90 +40,92 @@ func (a *app) exportModal(c *ui.Context) {
 		title = "导出完成"
 		detail = a.exportPath
 	}
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(460).Gap(12).Children(func() {
-			modalTitle(c, title, detail)
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-				text(c, "画幅", 10, pal.muted).Width(58)
-				segment(c, []string{"竖屏 1080×1920", "横屏 1920×1080"}, &a.orientation)
+	a.dialog(c, &open, 460, 0.58, func() {
+		modalTitle(c, title, detail)
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+			text(c, "画幅", 10, pal.muted).Width(58)
+			formats := []string{"竖屏 1080×1920", "横屏 1920×1080"}
+			if narrowWidth(c) {
+				formats = []string{"竖屏", "横屏"}
+			}
+			segment(c, formats, &a.orientation)
+		})
+		exportRow(c, "视频", "H.264 · GPU 优先，CPU 回退 · faststart")
+		exportRow(c, "音频", "AAC 192k · 原视频音轨")
+		exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
+		exportRow(c, "预计耗时", a.exportEstimate())
+		exportRow(c, "字幕", "已烧进画面 · 逐字")
+		if a.exportRunning || a.exportProgress > 0 {
+			value := "不额外写入"
+			if a.exportSRT {
+				value = "逐句 · 与视频同目录"
+			}
+			exportRow(c, "附加 SRT", value)
+		} else {
+			ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
+				AlignItems(ui.Center).Children(func() {
+				text(c, "附加 SRT", 10, pal.muted).Width(58)
+				mono(c, "可选 · 不改动已烧录画面", 9.5, pal.text)
+				ui.Box(c).Grow(1)
+				ui.Switch(c, &a.exportSRT)
 			})
-			exportRow(c, "视频", "H.264 · GPU 优先，CPU 回退 · faststart")
-			exportRow(c, "音频", "AAC 192k · 原视频音轨")
-			exportRow(c, "文件名", exportName(a.proj.Title, a.orientation))
-			exportRow(c, "预计耗时", a.exportEstimate())
-			exportRow(c, "字幕", "已烧进画面 · 逐字")
-			if a.exportRunning || a.exportProgress > 0 {
-				value := "不额外写入"
-				if a.exportSRT {
-					value = "逐句 · 与视频同目录"
-				}
-				exportRow(c, "附加 SRT", value)
-			} else {
-				ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
-					AlignItems(ui.Center).Children(func() {
-					text(c, "附加 SRT", 10, pal.muted).Width(58)
-					mono(c, "可选 · 不改动已烧录画面", 9.5, pal.text)
+			if a.exportSRT && len(a.proj.Lines) == 0 {
+				text(c, "工程还没有字幕，这次不会生成 SRT", 9, pal.faint)
+			}
+		}
+		if a.exportRunning || a.exportProgress > 0 {
+			progress := a.exportProgress
+			ui.Column(c).Gap(5).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Children(func() {
+					text(c, "导出进度", 9.5, pal.muted)
 					ui.Box(c).Grow(1)
-					ui.Switch(c, &a.exportSRT)
+					mono(c, fmt.Sprintf("%.0f%%", progress*100), 9.5, pal.text)
 				})
-				if a.exportSRT && len(a.proj.Lines) == 0 {
-					text(c, "工程还没有字幕，这次不会生成 SRT", 9, pal.faint)
-				}
-			}
-			if a.exportRunning || a.exportProgress > 0 {
-				progress := a.exportProgress
-				ui.Column(c).Gap(5).Children(func() {
-					ui.Row(c).AlignItems(ui.Center).Children(func() {
-						text(c, "导出进度", 9.5, pal.muted)
-						ui.Box(c).Grow(1)
-						mono(c, fmt.Sprintf("%.0f%%", progress*100), 9.5, pal.text)
+				ui.Box(c).Height(6).FillWidth().Radius(3).Background(pal.line).
+					Draw(func(p *ui.Painter, r ui.Rect) {
+						p.Fill(
+							ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(progress), H: r.H},
+							pal.accent, 3,
+						)
 					})
-					ui.Box(c).Height(6).FillWidth().Radius(3).Background(pal.line).
-						Draw(func(p *ui.Painter, r ui.Rect) {
-							p.Fill(
-								ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(progress), H: r.H},
-								pal.accent, 3,
-							)
-						})
-				})
-			}
-			if a.exportRunning {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
-					Radius(8).Background(pal.warnBG).Children(func() {
-					dot(c, pal.accent)
-					if a.exportStopping {
-						text(c, "正在停止 ffmpeg 并清理未完成的文件…", 10, pal.muted)
-					} else {
-						text(c, "导出在后台执行，可以关闭这个窗口", 10, pal.muted)
-					}
-				})
-			} else if a.exportErr != "" {
-				text(c, a.exportErr, 9.5, pal.warn)
-			} else if a.exportProgress >= 1 {
-				mono(c, a.exportPath, 9, pal.good).SingleLine()
-				if a.exportNote != "" {
-					text(c, a.exportNote, 9, pal.muted)
-				}
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				switch {
-				case a.exportRunning:
-					if a.exportStopping {
-						text(c, "正在取消…", 9.5, pal.faint)
-					} else {
-						ghostButton(c, "取消导出", func() { a.cancelExport() })
-					}
-				case a.exportErr != "":
-					ghostButton(c, "关闭", func() { a.modal = modalNone })
-					primaryButton(c, "重试", func() { a.startExport(c) })
-				case a.exportProgress >= 1:
-					ghostButton(c, "关闭", func() { a.modal = modalNone })
-					primaryButton(c, "完成", func() { a.modal = modalNone })
-				default:
-					ghostButton(c, "取消", func() { a.modal = modalNone })
-					primaryButton(c, "开始导出", func() { a.startExport(c) })
+			})
+		}
+		if a.exportRunning {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
+				Radius(8).Background(pal.warnBG).Children(func() {
+				dot(c, pal.accent)
+				if a.exportStopping {
+					text(c, "正在停止 ffmpeg 并清理未完成的文件…", 10, pal.muted)
+				} else {
+					text(c, "导出在后台执行，可以关闭这个窗口", 10, pal.muted)
 				}
 			})
+		} else if a.exportErr != "" {
+			text(c, a.exportErr, 9.5, pal.warn)
+		} else if a.exportProgress >= 1 {
+			mono(c, a.exportPath, 9, pal.good).SingleLine()
+			if a.exportNote != "" {
+				text(c, a.exportNote, 9, pal.muted)
+			}
+		}
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			switch {
+			case a.exportRunning:
+				if a.exportStopping {
+					text(c, "正在取消…", 9.5, pal.faint)
+				} else {
+					ghostButton(c, "取消导出", func() { a.cancelExport() })
+				}
+			case a.exportErr != "":
+				ghostButton(c, "关闭", func() { a.modal = modalNone })
+				primaryButton(c, "重试", func() { a.startExport(c) })
+			case a.exportProgress >= 1:
+				ghostButton(c, "关闭", func() { a.modal = modalNone })
+				primaryButton(c, "完成", func() { a.modal = modalNone })
+			default:
+				ghostButton(c, "取消", func() { a.modal = modalNone })
+				primaryButton(c, "开始导出", func() { a.startExport(c) })
+			}
 		})
 	})
 	if !open {
@@ -148,91 +150,89 @@ func exportName(title string, orientation int) string {
 
 func (a *app) chordModal(c *ui.Context) {
 	open := true
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(480).Gap(12).Children(func() {
-			bar := scoreBarAt(a, a.chordBar)
-			title := fmt.Sprintf("第 %d 小节", a.chordBar+1)
-			modalTitle(c, title+" · 选择和弦", "点一下替换，谱面和时间轴会立刻重排")
-			if len(bar.Candidates) > 0 {
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					label(c, "识别候选", 9.5, pal.muted, 600)
-					for _, name := range bar.Candidates {
-						candidate := name
-						b := ui.ButtonBase(c).Height(28).Radius(7).Center().Label(candidate).FocusRing(false).
-							Background(pal.card).Border(1, pal.line).Tooltip(chordTooltip(candidate))
-						if b.Hovered() {
-							b.Background(pal.warnBG)
-						}
-						b.OnClick(func() {
-							a.setBarChord(a.chordBar, candidate)
-							a.toast(c, "已切换候选", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, candidate))
-							a.modal = modalNone
-						})
-						b.Children(func() {
-							label(c, candidate, 10.5, pal.text, 650)
-						})
+	a.dialog(c, &open, 480, 0.55, func() {
+		bar := scoreBarAt(a, a.chordBar)
+		title := fmt.Sprintf("第 %d 小节", a.chordBar+1)
+		modalTitle(c, title+" · 选择和弦", "点一下替换，谱面和时间轴会立刻重排")
+		if len(bar.Candidates) > 0 {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				label(c, "识别候选", 9.5, pal.muted, 600)
+				for _, name := range bar.Candidates {
+					candidate := name
+					b := ui.ButtonBase(c).Height(28).Radius(7).Center().Label(candidate).FocusRing(false).
+						Background(pal.card).Border(1, pal.line).Tooltip(chordTooltip(candidate))
+					if b.Hovered() {
+						b.Background(pal.warnBG)
 					}
-					ui.Box(c).Grow(1)
-					mono(c, fmt.Sprintf("置信度 %.0f%%", bar.Conf*100), 8.5, pal.faint)
-				})
-			}
-			grid := ui.Grid(c).FillWidth().Columns(5).Gap(6)
-			grid.Children(func() {
-				for _, name := range []string{
-					"C", "G", "Am", "Em", "F",
-					"Dm", "G7", "Cmaj7", "Am7", "Em7",
-					"D7", "Bb", "A", "E7", "C7",
-				} {
-					chord := name
-					on := a.chordChoice == chord
-					b := ui.ButtonBase(c).Height(34).Radius(7).Center().Label(chord).FocusRing(false).
-						Tooltip(chordTooltip(chord))
-					if on {
-						b.Background(pal.accent)
-					} else {
-						b.Background(pal.card).Border(1, pal.line)
-					}
-					if b.Hovered() && !on {
-						b.Background(pal.panel2)
-					}
-					b.OnClick(func() { a.chordChoice = chord })
+					b.OnClick(func() {
+						a.setBarChord(a.chordBar, candidate)
+						a.toast(c, "已切换候选", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, candidate))
+						a.modal = modalNone
+					})
 					b.Children(func() {
-						color := pal.text
-						if on {
-							color = pal.accentInk
-						}
-						label(c, chord, 11, color, 650)
+						label(c, candidate, 10.5, pal.text, 650)
 					})
 				}
+				ui.Box(c).Grow(1)
+				mono(c, fmt.Sprintf("置信度 %.0f%%", bar.Conf*100), 8.5, pal.faint)
 			})
-			ui.Row(c).Gap(14).AlignItems(ui.Center).Padding(10).Radius(9).
-				Background(pal.card).Children(func() {
-				preview := ui.Box(c).Size(96, 104)
-				preview.Draw(func(p *ui.Painter, r ui.Rect) {
-					if chord, ok := uke.Normalize(a.chordChoice); ok {
-						if shape, ok := uke.Shape(chord, a.proj.Capo); ok {
-							drawDiagram(p, r, shape, a.overlayAccent())
-							p.Text(r.X+r.W/2-18, r.Y+r.H-4, shape.Name, 9, pal.muted)
-							return
-						}
+		}
+		grid := ui.Grid(c).FillWidth().Columns(5).Gap(6)
+		grid.Children(func() {
+			for _, name := range []string{
+				"C", "G", "Am", "Em", "F",
+				"Dm", "G7", "Cmaj7", "Am7", "Em7",
+				"D7", "Bb", "A", "E7", "C7",
+			} {
+				chord := name
+				on := a.chordChoice == chord
+				b := ui.ButtonBase(c).Height(34).Radius(7).Center().Label(chord).FocusRing(false).
+					Tooltip(chordTooltip(chord))
+				if on {
+					b.Background(pal.accent)
+				} else {
+					b.Background(pal.card).Border(1, pal.line)
+				}
+				if b.Hovered() && !on {
+					b.Background(pal.panel2)
+				}
+				b.OnClick(func() { a.chordChoice = chord })
+				b.Children(func() {
+					color := pal.text
+					if on {
+						color = pal.accentInk
 					}
-					p.Text(r.X+r.W/2-4, r.Y+r.H/2, "?", 16, pal.faint)
+					label(c, chord, 11, color, 650)
 				})
-				ui.Column(c).Grow(1).Gap(4).Children(func() {
-					label(c, "当前："+firstChord(bar), 10, pal.muted, 500)
-					text(c, "标准调弦 GCEA · Capo "+fmt.Sprintf("%d", a.proj.Capo), 9, pal.faint)
-					text(c, "按形状调查表，画面同时显示实际调", 9, pal.faint)
-				})
+			}
+		})
+		ui.Row(c).Gap(14).AlignItems(ui.Center).Padding(10).Radius(9).
+			Background(pal.card).Children(func() {
+			preview := ui.Box(c).Size(96, 104)
+			preview.Draw(func(p *ui.Painter, r ui.Rect) {
+				if chord, ok := uke.Normalize(a.chordChoice); ok {
+					if shape, ok := uke.Shape(chord, a.proj.Capo); ok {
+						drawDiagram(p, r, shape, a.overlayAccent())
+						p.Text(r.X+r.W/2-18, r.Y+r.H-4, shape.Name, 9, pal.muted)
+						return
+					}
+				}
+				p.Text(r.X+r.W/2-4, r.Y+r.H/2, "?", 16, pal.faint)
 			})
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ghostButton(c, "取消", func() { a.modal = modalNone })
-				primaryButton(c, "应用和弦", func() {
-					if a.chordBar >= 0 && a.chordBar < len(a.proj.Bars) {
-						a.setBarChord(a.chordBar, a.chordChoice)
-						a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, a.chordChoice))
-					}
-					a.modal = modalNone
-				})
+			ui.Column(c).Grow(1).Gap(4).Children(func() {
+				label(c, "当前："+firstChord(bar), 10, pal.muted, 500)
+				text(c, "标准调弦 GCEA · Capo "+fmt.Sprintf("%d", a.proj.Capo), 9, pal.faint)
+				text(c, "按形状调查表，画面同时显示实际调", 9, pal.faint)
+			})
+		})
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ghostButton(c, "取消", func() { a.modal = modalNone })
+			primaryButton(c, "应用和弦", func() {
+				if a.chordBar >= 0 && a.chordBar < len(a.proj.Bars) {
+					a.setBarChord(a.chordBar, a.chordChoice)
+					a.toast(c, "和弦已更新", fmt.Sprintf("第 %d 小节 → %s", a.chordBar+1, a.chordChoice))
+				}
+				a.modal = modalNone
 			})
 		})
 	})
@@ -268,56 +268,54 @@ func (a *app) analysisModal(c *ui.Context) {
 			detail = "工程已更新，可以继续校对"
 		}
 	}
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(460).Gap(12).Children(func() {
-			modalTitle(c, title, detail)
-			stageRow(c, "1", "抽取音轨", "ffmpeg · 16k mono PCM", a.analysis >= 0.08, "")
-			asrDetail := "未配置 MYGO_UKE_VOLCANO_API_KEY · 跳过"
-			asrStatus := "跳过"
-			asrDone := false
-			if a.asrConfig.APIKey != "" {
-				asrDetail = "火山流式 ASR · 句级 utterances"
-				asrStatus = "运行"
-				asrDone = a.analysis >= 1
-			}
-			stageRow(c, "2", "语音转写", asrDetail, asrDone, asrStatus)
-			chartDetail := "未导入曲谱 · 跳过"
-			chartStatus := "跳过"
-			if a.jobChart != nil {
-				chartDetail = fmt.Sprintf("%d 行 · %d 个和弦", len(a.jobChart.Lines), chartChordCount(a.jobChart))
-				chartStatus = "等待"
-			}
-			chartDone := a.analysis >= 1
-			stageRow(c, "3", "曲谱对齐", chartDetail, chartDone, chartStatus)
-			bars := "保存后生成"
-			if a.analysis >= 1 {
-				bars = fmt.Sprintf("%d bars", len(a.proj.Bars))
-			}
-			stageRow(c, "4", "小节与工程", bars, a.analysis >= 1, "")
-			progress := a.analysis
-			ui.Column(c).Gap(5).Children(func() {
-				ui.Row(c).AlignItems(ui.Center).Children(func() {
-					text(c, "总进度", 9.5, pal.muted)
-					ui.Box(c).Grow(1)
-					mono(c, fmt.Sprintf("%.0f%%", progress*100), 9.5, pal.text)
+	a.dialog(c, &open, 460, 0.46, func() {
+		modalTitle(c, title, detail)
+		stageRow(c, "1", "抽取音轨", "ffmpeg · 16k mono PCM", a.analysis >= 0.08, "")
+		asrDetail := "未配置 MYGO_UKE_VOLCANO_API_KEY · 跳过"
+		asrStatus := "跳过"
+		asrDone := false
+		if a.asrConfig.APIKey != "" {
+			asrDetail = "火山流式 ASR · 句级 utterances"
+			asrStatus = "运行"
+			asrDone = a.analysis >= 1
+		}
+		stageRow(c, "2", "语音转写", asrDetail, asrDone, asrStatus)
+		chartDetail := "未导入曲谱 · 跳过"
+		chartStatus := "跳过"
+		if a.jobChart != nil {
+			chartDetail = fmt.Sprintf("%d 行 · %d 个和弦", len(a.jobChart.Lines), chartChordCount(a.jobChart))
+			chartStatus = "等待"
+		}
+		chartDone := a.analysis >= 1
+		stageRow(c, "3", "曲谱对齐", chartDetail, chartDone, chartStatus)
+		bars := "保存后生成"
+		if a.analysis >= 1 {
+			bars = fmt.Sprintf("%d bars", len(a.proj.Bars))
+		}
+		stageRow(c, "4", "小节与工程", bars, a.analysis >= 1, "")
+		progress := a.analysis
+		ui.Column(c).Gap(5).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				text(c, "总进度", 9.5, pal.muted)
+				ui.Box(c).Grow(1)
+				mono(c, fmt.Sprintf("%.0f%%", progress*100), 9.5, pal.text)
+			})
+			ui.Box(c).Height(6).FillWidth().Radius(3).Background(pal.line).
+				Draw(func(p *ui.Painter, r ui.Rect) {
+					p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(progress), H: r.H}, pal.accent, 3)
 				})
-				ui.Box(c).Height(6).FillWidth().Radius(3).Background(pal.line).
-					Draw(func(p *ui.Painter, r ui.Rect) {
-						p.Fill(ui.Rect{X: r.X, Y: r.Y, W: r.W * float32(progress), H: r.H}, pal.accent, 3)
-					})
-			})
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				switch {
-				case a.jobRunning:
-					text(c, "生成中，先别关窗口…", 9.5, pal.faint)
-				case a.jobErr != "":
-					ghostButton(c, "关闭", func() { a.modal = modalNone })
-					primaryButton(c, "重试", a.retryJob)
-				default:
-					ghostButton(c, "关闭", func() { a.modal = modalNone })
-					primaryButton(c, "完成", func() { a.modal = modalNone })
-				}
-			})
+		})
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			switch {
+			case a.jobRunning:
+				text(c, "生成中，先别关窗口…", 9.5, pal.faint)
+			case a.jobErr != "":
+				ghostButton(c, "关闭", func() { a.modal = modalNone })
+				primaryButton(c, "重试", a.retryJob)
+			default:
+				ghostButton(c, "关闭", func() { a.modal = modalNone })
+				primaryButton(c, "完成", func() { a.modal = modalNone })
+			}
 		})
 	})
 	if !open {

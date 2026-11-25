@@ -229,20 +229,58 @@ func applyGrid(p *project.Project, s *Sheet, lines []TimedLine) {
 // FromProject rebuilds the chart view of a project so a fresh transcription
 // can be aligned against the same lyrics and chord anchors.
 func FromProject(p *project.Project) *Sheet {
-	if p == nil {
+	if p == nil || !p.HasChartChords() {
 		return nil
 	}
-	hasChords := false
-	lines := make([]Line, 0, len(p.Lines))
+	type item struct {
+		start float64
+		line  Line
+	}
+	items := make([]item, 0, len(p.Lines))
 	for _, line := range p.Lines {
 		marks := append([]project.ChordMark(nil), line.Chords...)
-		if len(marks) > 0 {
-			hasChords = true
-		}
-		lines = append(lines, Line{Chords: marks, Lyrics: line.Text})
+		items = append(items, item{
+			start: line.Start,
+			line:  Line{Chords: marks, Lyrics: line.Text},
+		})
 	}
-	if !hasChords {
-		return nil
+
+	segments := append([]score.ChordSegment(nil), p.Chords...)
+	sort.SliceStable(segments, func(i, j int) bool { return segments[i].Start < segments[j].Start })
+	var group []score.ChordSegment
+	flush := func() {
+		if len(group) == 0 {
+			return
+		}
+		marks := make([]project.ChordMark, 0, len(group))
+		for _, segment := range group {
+			marks = append(marks, project.ChordMark{At: -1, Label: segment.Label})
+		}
+		items = append(items, item{
+			start: group[0].Start,
+			line:  Line{Chords: chordList(marks)},
+		})
+		group = nil
+	}
+	for _, segment := range segments {
+		if segment.Source != "chart" {
+			continue
+		}
+		if outsideLines(segment, p.Lines) {
+			if len(group) > 0 && segment.Start > group[len(group)-1].End+0.01 {
+				flush()
+			}
+			group = append(group, segment)
+			continue
+		}
+		flush()
+	}
+	flush()
+
+	sort.SliceStable(items, func(i, j int) bool { return items[i].start < items[j].start })
+	lines := make([]Line, 0, len(items))
+	for _, current := range items {
+		lines = append(lines, current.line)
 	}
 	return &Sheet{
 		Key:           p.Key,
@@ -251,6 +289,15 @@ func FromProject(p *project.Project) *Sheet {
 		TimeSignature: p.TimeSignature,
 		Lines:         lines,
 	}
+}
+
+func outsideLines(segment score.ChordSegment, lines []project.Line) bool {
+	for _, line := range lines {
+		if segment.Start < line.End && segment.End > line.Start {
+			return false
+		}
+	}
+	return true
 }
 
 type span struct {

@@ -1,0 +1,869 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MyGo Uke Mobile">
+  <title>MyGo Uke · Mobile UI</title>
+  <link rel="icon" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="stylesheet" href="styles.css">
+  <script src="ios-shell.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg class="icon-defs" aria-hidden="true">
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-export" viewBox="0 0 24 24"><path d="M12 15V3"/><path d="M7.5 7.5L12 3l4.5 4.5"/><path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5l11 6.5-11 6.5z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="7" y="5" width="3.5" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.5" y="5" width="3.5" height="14" rx="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5h4L13 5v14L8 14.5H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h4L13 5v14L8 14.5H4z"/><path d="M17 9l5 5"/><path d="M22 9l-5 5"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="M13.5 5.5l4 4"/></symbol>
+    <symbol id="i-lyrics" viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 11h12"/><path d="M4 16h16"/><path d="M4 21h9"/></symbol>
+    <symbol id="i-chord" viewBox="0 0 24 24"><path d="M5 4v16"/><path d="M9.5 4v16"/><path d="M14 4v16"/><path d="M18.5 4v16"/><path d="M4 7h15"/><path d="M4 12h15"/><path d="M4 17h15"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h4l2 2h6a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.42 1.42-.06-.06A1.7 1.7 0 0 0 16.44 18a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V20h-2v-.3a1.7 1.7 0 0 0-1.1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06-1.42-1.42.06-.06A1.7 1.7 0 0 0 9 15.44a1.7 1.7 0 0 0-1.55-1.1H7v-2h.45A1.7 1.7 0 0 0 9 11.22a1.7 1.7 0 0 0-.34-1.88l-.06-.06 1.42-1.42.06.06A1.7 1.7 0 0 0 12 8.3a1.7 1.7 0 0 0 1.1-1.55V6.3h2v.45A1.7 1.7 0 0 0 16.2 8.3a1.7 1.7 0 0 0 1.88-.34l.06-.06 1.42 1.42-.06.06A1.7 1.7 0 0 0 19.16 11.2a1.7 1.7 0 0 0 1.55 1.1H21v2h-.29a1.7 1.7 0 0 0-1.31.7z"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9" r="1.6"/><path d="M4.5 18l5.5-5 4 4 2-2 3.5 3"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M18.5 16.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5.5l3.5 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9.5 7V4.8h5V7"/><path d="M6.5 7l.8 13h9.4l.8-13"/><path d="M10 11v5"/><path d="M14 11v5"/></symbol>
+    <symbol id="i-sheet" viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol>
+    <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="17" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="1.2" fill="currentColor" stroke="none"/></symbol>
+  </svg>
+
+  <main class="board">
+    <header class="board-head">
+      <div class="board-title">
+        <div class="eyebrow">MYGO UKE · MOBILE INTERFACE · 02</div>
+        <h1>口袋里的<br><em>录音棚</em></h1>
+        <p class="lede">
+          手机是随身的校对遥控器，iPad 是能摊开的工作台。视频始终是唯一主角，
+          播放头同时驱动字幕、和弦和小节高亮；其余控件退到墨色里。
+        </p>
+      </div>
+      <div class="head-side">
+        <div class="head-meta">
+          <span><b>方向</b>A · 录音棚</span>
+          <span><b>iPhone</b>402 × 874</span>
+          <span><b>iPad</b>1194 × 834</span>
+          <span><b>状态</b>交互稿 · 待评审</span>
+        </div>
+        <div class="head-actions">
+          <button class="page-action" type="button" data-annotations>
+            <svg class="icon"><use href="#i-spark"/></svg>
+            显示标注
+          </button>
+          <a class="page-action is-quiet" href="#ipad">跳到 iPad</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="principles" aria-label="设计原则">
+      <article class="principle">
+        <span class="principle-no">01</span>
+        <h2>视频是唯一亮面</h2>
+        <p>不做缩略图浏览。导入后立刻进入预览，用画面本身判断对不对。</p>
+      </article>
+      <article class="principle">
+        <span class="principle-no">02</span>
+        <h2>播放头驱动一切</h2>
+        <p>字幕、和弦、小节、指法都跟随同一个时间点；点哪里，哪里就跳过去。</p>
+      </article>
+      <article class="principle">
+        <span class="principle-no">03</span>
+        <h2>一手看，一手改</h2>
+        <p>手机只保留当前句和下一步；完整的逐句、逐字、逐小节编辑留给 iPad。</p>
+      </article>
+    </section>
+
+    <section class="section" id="phone">
+      <header class="section-head">
+        <div>
+          <div class="eyebrow">01 · IPHONE</div>
+          <h2>四个屏幕，一条主线</h2>
+        </div>
+        <p>从预览到校对，再到工程与导出。底部四栏固定，当前页只做一件事。</p>
+      </header>
+
+      <div class="phone-grid">
+        <article class="device-block" id="phone-edit" data-screen-label="iPhone · 编辑">
+          <div class="device-head">
+            <span class="device-no">01</span>
+            <div><h3>编辑</h3><p>视频 + 双层字幕 + 和弦条</p></div>
+            <span class="device-size mono">402 × 874</span>
+          </div>
+          <ios-shell dark width="402" screen-height="874">
+            <div class="phone" data-phone="edit" data-duration="198" data-time="42">
+              <header class="phone-head">
+                <button class="project-switch" type="button" data-toast="切换工程">
+                  <span>夏夜来信</span>
+                  <svg class="icon"><use href="#i-chevron-down"/></svg>
+                </button>
+                <div class="phone-head-actions">
+                  <span class="save-state"><i></i>已保存</span>
+                  <button class="icon-button is-accent" type="button" data-toast="导出设置">
+                    <svg class="icon"><use href="#i-export"/></svg>
+                  </button>
+                  <button class="icon-button" type="button" data-toast="更多操作">
+                    <svg class="icon"><use href="#i-more"/></svg>
+                  </button>
+                </div>
+              </header>
+              <div class="phone-meta mono">
+                <span>03:18</span><span>68 BPM</span><span>4/4</span><span>C 调</span><span>Capo 0</span>
+              </div>
+
+              <div class="phone-stage">
+                <div class="video-frame" data-video>
+                  <img class="video-still" src="assets/ukulele-still.jpg" alt="尤克里里弹唱视频预览">
+                  <span class="video-scrim video-scrim-top"></span>
+                  <span class="video-scrim video-scrim-bottom"></span>
+
+                  <div class="overlay-top">
+                    <button class="chord-chip chord-chip-current" type="button" data-chord="C">
+                      <b data-chord-label>C</b>
+                      <span class="beat-row">1 · 2 · 3 · 4</span>
+                    </button>
+                    <button class="chord-chip" type="button" data-chord="G">G</button>
+                    <button class="chord-chip" type="button" data-chord="Am">Am</button>
+                    <span class="overlay-spacer"></span>
+                    <span class="fret-card" data-fret-card>
+                      <svg viewBox="0 0 64 74" aria-hidden="true">
+                        <g data-shape="C">
+                          <circle cx="52" cy="46" r="3.1" class="fret-dot"/>
+                        </g>
+                        <g data-shape="G" style="display:none">
+                          <circle cx="24" cy="32.5" r="3.1" class="fret-dot"/>
+                          <circle cx="38" cy="46" r="3.1" class="fret-dot"/>
+                          <circle cx="52" cy="32.5" r="3.1" class="fret-dot"/>
+                        </g>
+                        <g data-shape="Am" style="display:none">
+                          <circle cx="10" cy="32.5" r="3.1" class="fret-dot"/>
+                        </g>
+                        <g class="fret-grid">
+                          <path d="M10 14v48"/><path d="M24 14v48"/><path d="M38 14v48"/><path d="M52 14v48"/>
+                          <path d="M10 14h42" class="fret-nut"/>
+                          <path d="M10 27.5h42"/><path d="M10 41h42"/><path d="M10 54.5h42"/><path d="M10 68h42"/>
+                        </g>
+                      </svg>
+                      <span class="fret-name" data-fret-name>C</span>
+                    </span>
+                  </div>
+
+                  <div class="overlay-bottom">
+                    <div class="lyric-current"><span>我把</span><span class="lyric-hot">心</span><span>事弹成了海</span></div>
+                    <div class="lyric-next"><span>你说月色刚好</span><span>别急着离开</span></div>
+                  </div>
+                  <span class="video-hint">点画面播放 / 暂停</span>
+                </div>
+              </div>
+
+              <div class="phone-transport">
+                <div class="scrub" data-scrub>
+                  <span class="scrub-track"><i class="scrub-fill"></i><b class="scrub-head"></b></span>
+                  <span class="scrub-times mono"><span data-clock>00:42.0</span><span>03:18.0</span></span>
+                </div>
+                <div class="transport-row">
+                  <button class="round-mini" type="button" data-seek="-5">−5</button>
+                  <button class="play-button" type="button" data-play aria-label="播放">
+                    <svg class="icon play-icon"><use href="#i-play"/></svg>
+                    <svg class="icon pause-icon"><use href="#i-pause"/></svg>
+                  </button>
+                  <button class="round-mini" type="button" data-seek="5">+5</button>
+                  <span class="transport-spacer"></span>
+                  <button class="icon-button" type="button" data-mute aria-label="静音">
+                    <svg class="icon volume-icon"><use href="#i-volume"/></svg>
+                    <svg class="icon mute-icon"><use href="#i-mute"/></svg>
+                  </button>
+                  <button class="soft-chip" type="button" data-toast="安全区已开启">安全区</button>
+                </div>
+              </div>
+
+              <nav class="phone-tabs" aria-label="主导航">
+                <button class="is-on" type="button" data-goto="phone-edit"><svg class="icon"><use href="#i-edit"/></svg><span>编辑</span></button>
+                <button type="button" data-goto="phone-lyrics"><svg class="icon"><use href="#i-lyrics"/></svg><span>歌词</span></button>
+                <button type="button" data-goto="phone-chords"><svg class="icon"><use href="#i-chord"/></svg><span>和弦</span></button>
+                <button type="button" data-goto="phone-project"><svg class="icon"><use href="#i-folder"/></svg><span>工程</span></button>
+              </nav>
+            </div>
+          </ios-shell>
+          <div class="device-notes">
+            <span>双行字幕：当前句左对齐，下一句右对齐</span>
+            <span>指法图固定在右上，不遮挡字幕</span>
+          </div>
+        </article>
+
+        <article class="device-block" id="phone-lyrics" data-screen-label="iPhone · 歌词">
+          <div class="device-head">
+            <span class="device-no">02</span>
+            <div><h3>歌词</h3><p>逐句定位，点一句跳到那一拍</p></div>
+            <span class="device-size mono">402 × 874</span>
+          </div>
+          <ios-shell dark width="402" screen-height="874">
+            <div class="phone" data-phone="lyrics">
+              <header class="phone-head">
+                <div class="screen-title">
+                  <span class="eyebrow">TIMELINE</span>
+                  <h2>歌词</h2>
+                </div>
+                <button class="icon-button" type="button" data-toast="添加一句">
+                  <svg class="icon"><use href="#i-plus"/></svg>
+                </button>
+              </header>
+              <div class="list-summary">
+                <span class="mono">12 句</span>
+                <i class="status-dot is-warn"></i>
+                <span>2 句待确认</span>
+                <span class="summary-spacer"></span>
+                <button class="soft-chip" type="button" data-toast="重新转写会覆盖手动编辑">重新转写</button>
+              </div>
+
+              <div class="line-list" data-line-list>
+                <button class="line-row" type="button" data-line data-time="34.0">
+                  <span class="line-time mono">00:34.0</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>Em</b><b>C</b></span>
+                    <span class="line-text">你说夏天会记得吗</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-good"></i></span>
+                </button>
+                <button class="line-row" type="button" data-line data-time="38.2">
+                  <span class="line-time mono">00:38.2</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>F</b><b>C</b></span>
+                    <span class="line-text">晚风把蝉声吹进窗台</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-good"></i></span>
+                </button>
+                <button class="line-row is-current" type="button" data-line data-time="42.0">
+                  <span class="line-time mono">00:42.0</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>C</b><b>G</b><b>Am</b></span>
+                    <span class="line-text">我把心事弹成了海</span>
+                  </span>
+                  <span class="line-state is-playing">播放中</span>
+                </button>
+                <button class="line-row" type="button" data-line data-time="45.8">
+                  <span class="line-time mono">00:45.8</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>F</b><b>C</b></span>
+                    <span class="line-text">你说月色刚好 别急着离开</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-warn"></i></span>
+                </button>
+                <button class="line-row" type="button" data-line data-time="50.1">
+                  <span class="line-time mono">00:50.1</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>Dm</b><b>G</b></span>
+                    <span class="line-text">这一封夏夜的信 还没拆</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-good"></i></span>
+                </button>
+                <button class="line-row" type="button" data-line data-time="54.4">
+                  <span class="line-time mono">00:54.4</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>C</b><b>G</b></span>
+                    <span class="line-text">灯影落在琴弦上</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-good"></i></span>
+                </button>
+                <button class="line-row" type="button" data-line data-time="58.8">
+                  <span class="line-time mono">00:58.8</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>Am</b><b>F</b></span>
+                    <span class="line-text">我把副歌又唱了一遍</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-good"></i></span>
+                </button>
+                <button class="line-row" type="button" data-line data-time="63.2">
+                  <span class="line-time mono">01:03.2</span>
+                  <span class="line-main">
+                    <span class="line-chords"><b>C</b><b>G</b></span>
+                    <span class="line-text">等风把回信送到窗边</span>
+                  </span>
+                  <span class="line-state"><i class="status-dot is-warn"></i></span>
+                </button>
+              </div>
+
+              <div class="sticky-actions">
+                <button class="primary-button" type="button" data-toast="打开逐句编辑">编辑当前句</button>
+                <button class="soft-chip" type="button" data-toast="添加一句">+ 添加</button>
+              </div>
+              <nav class="phone-tabs" aria-label="主导航">
+                <button type="button" data-goto="phone-edit"><svg class="icon"><use href="#i-edit"/></svg><span>编辑</span></button>
+                <button class="is-on" type="button" data-goto="phone-lyrics"><svg class="icon"><use href="#i-lyrics"/></svg><span>歌词</span></button>
+                <button type="button" data-goto="phone-chords"><svg class="icon"><use href="#i-chord"/></svg><span>和弦</span></button>
+                <button type="button" data-goto="phone-project"><svg class="icon"><use href="#i-folder"/></svg><span>工程</span></button>
+              </nav>
+            </div>
+          </ios-shell>
+          <div class="device-notes">
+            <span>当前句用左侧琥珀线和浅底强调</span>
+            <span>待确认用黄点，完成用绿点，不写说明文字</span>
+          </div>
+        </article>
+
+        <article class="device-block" id="phone-chords" data-screen-label="iPhone · 和弦">
+          <div class="device-head">
+            <span class="device-no">03</span>
+            <div><h3>和弦</h3><p>小节 + 按字对齐，一眼看出持续关系</p></div>
+            <span class="device-size mono">402 × 874</span>
+          </div>
+          <ios-shell dark width="402" screen-height="874">
+            <div class="phone" data-phone="chords">
+              <header class="phone-head">
+                <div class="screen-title">
+                  <span class="eyebrow">CHART · 24 BARS</span>
+                  <h2>和弦</h2>
+                </div>
+                <button class="soft-chip is-accent" type="button" data-toast="从曲谱重新对齐">曲谱对齐</button>
+              </header>
+
+              <div class="chord-hero">
+                <div class="hero-copy">
+                  <span class="eyebrow">第 12 小节 · 4 拍</span>
+                  <div class="hero-chord" data-hero-chord>C</div>
+                  <div class="hero-beats"><span class="on">1</span><span>2</span><span>3</span><span>4</span></div>
+                </div>
+                <span class="fret-card is-large" data-fret-card>
+                  <svg viewBox="0 0 64 74" aria-hidden="true">
+                    <g data-shape="C"><circle cx="52" cy="46" r="3.1" class="fret-dot"/></g>
+                    <g data-shape="G" style="display:none">
+                      <circle cx="24" cy="32.5" r="3.1" class="fret-dot"/>
+                      <circle cx="38" cy="46" r="3.1" class="fret-dot"/>
+                      <circle cx="52" cy="32.5" r="3.1" class="fret-dot"/>
+                    </g>
+                    <g data-shape="Am" style="display:none"><circle cx="10" cy="32.5" r="3.1" class="fret-dot"/></g>
+                    <g class="fret-grid">
+                      <path d="M10 14v48"/><path d="M24 14v48"/><path d="M38 14v48"/><path d="M52 14v48"/>
+                      <path d="M10 14h42" class="fret-nut"/>
+                      <path d="M10 27.5h42"/><path d="M10 41h42"/><path d="M10 54.5h42"/><path d="M10 68h42"/>
+                    </g>
+                  </svg>
+                  <span class="fret-name" data-fret-name>C</span>
+                </span>
+              </div>
+
+              <div class="next-bars">
+                <span class="next-label">接下来</span>
+                <button type="button" data-toast="跳到第 13 小节">G</button>
+                <button type="button" data-toast="跳到第 14 小节">Am</button>
+                <button type="button" data-toast="跳到第 15 小节">Em</button>
+                <button type="button" data-toast="跳到第 16 小节">F</button>
+              </div>
+
+              <div class="align-card">
+                <div class="align-head">
+                  <span>按字对齐</span>
+                  <span class="mono">曲谱 · 可信 92%</span>
+                </div>
+                <div class="chord-spans">
+                  <button class="chord-span span-3 is-on" type="button" data-chord-pick="C">C</button>
+                  <button class="chord-span span-3" type="button" data-chord-pick="G">G</button>
+                  <button class="chord-span span-2" type="button" data-chord-pick="Am">Am</button>
+                </div>
+                <div class="char-row">
+                  <button class="char-cell is-current" type="button">我</button>
+                  <button class="char-cell" type="button">把</button>
+                  <button class="char-cell" type="button">心</button>
+                  <button class="char-cell" type="button">事</button>
+                  <button class="char-cell" type="button">弹</button>
+                  <button class="char-cell" type="button">成</button>
+                  <button class="char-cell" type="button">了</button>
+                  <button class="char-cell" type="button">海</button>
+                </div>
+                <p class="align-hint">和弦持续到下一次变化 · 点字后再点和弦改它</p>
+              </div>
+
+              <div class="bar-list">
+                <div class="bar-row is-current">
+                  <span class="bar-no mono">12</span>
+                  <b class="bar-chord">C</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">92%</span>
+                  <button type="button" data-toast="编辑第 12 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">13</span>
+                  <b class="bar-chord">G</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">88%</span>
+                  <button type="button" data-toast="编辑第 13 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">14</span>
+                  <b class="bar-chord">Am</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono is-warn">待确认</span>
+                  <button type="button" data-toast="编辑第 14 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">15</span>
+                  <b class="bar-chord">Em</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">90%</span>
+                  <button type="button" data-toast="编辑第 15 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">16</span>
+                  <b class="bar-chord">F</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">86%</span>
+                  <button type="button" data-toast="编辑第 16 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">17</span>
+                  <b class="bar-chord">C</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">94%</span>
+                  <button type="button" data-toast="编辑第 17 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">18</span>
+                  <b class="bar-chord">G</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">91%</span>
+                  <button type="button" data-toast="编辑第 18 小节">改</button>
+                </div>
+                <div class="bar-row">
+                  <span class="bar-no mono">19</span>
+                  <b class="bar-chord">Am</b>
+                  <span class="bar-beats mono">1 · 2 · 3 · 4</span>
+                  <span class="bar-conf mono">89%</span>
+                  <button type="button" data-toast="编辑第 19 小节">改</button>
+                </div>
+              </div>
+
+              <nav class="phone-tabs" aria-label="主导航">
+                <button type="button" data-goto="phone-edit"><svg class="icon"><use href="#i-edit"/></svg><span>编辑</span></button>
+                <button type="button" data-goto="phone-lyrics"><svg class="icon"><use href="#i-lyrics"/></svg><span>歌词</span></button>
+                <button class="is-on" type="button" data-goto="phone-chords"><svg class="icon"><use href="#i-chord"/></svg><span>和弦</span></button>
+                <button type="button" data-goto="phone-project"><svg class="icon"><use href="#i-folder"/></svg><span>工程</span></button>
+              </nav>
+            </div>
+          </ios-shell>
+          <div class="device-notes">
+            <span>和弦块按字跨度排列，持续关系不靠文字解释</span>
+            <span>当前小节和当前字共用琥珀色，避免两套高亮</span>
+          </div>
+        </article>
+
+        <article class="device-block" id="phone-project" data-screen-label="iPhone · 工程与导出">
+          <div class="device-head">
+            <span class="device-no">04</span>
+            <div><h3>工程</h3><p>工程库与导出抽屉，动作只有一步</p></div>
+            <span class="device-size mono">402 × 874</span>
+          </div>
+          <ios-shell dark width="402" screen-height="874">
+            <div class="phone" data-phone="project">
+              <header class="phone-head">
+                <div class="screen-title">
+                  <span class="eyebrow">LIBRARY</span>
+                  <h2>工程</h2>
+                </div>
+                <button class="icon-button" type="button" data-toast="新建工程">
+                  <svg class="icon"><use href="#i-plus"/></svg>
+                </button>
+              </header>
+
+              <button class="new-project" type="button" data-toast="导入视频与曲谱">
+                <span class="new-icon"><svg class="icon"><use href="#i-plus"/></svg></span>
+                <span class="new-copy">
+                  <b>新建工程</b>
+                  <span>视频 + 曲谱 → 自动对齐</span>
+                </span>
+                <span class="new-actions">
+                  <span><svg class="icon"><use href="#i-video"/></svg>视频</span>
+                  <span><svg class="icon"><use href="#i-image"/></svg>曲谱</span>
+                </span>
+              </button>
+
+              <div class="project-list">
+                <button class="project-row is-on" type="button" data-toast="打开夏夜来信">
+                  <span class="project-thumb tone-0"><i>C</i></span>
+                  <span class="project-copy">
+                    <b>夏夜来信</b>
+                    <span class="mono">03:18 · C 调 · 有谱</span>
+                  </span>
+                  <span class="project-state">编辑中</span>
+                </button>
+                <button class="project-row" type="button" data-toast="打开晴天">
+                  <span class="project-thumb tone-1"><i>G</i></span>
+                  <span class="project-copy">
+                    <b>晴天</b>
+                    <span class="mono">04:29 · G 调</span>
+                  </span>
+                  <span class="project-state is-done">已导出</span>
+                </button>
+                <button class="project-row" type="button" data-toast="打开小情歌">
+                  <span class="project-thumb tone-2"><i>Am</i></span>
+                  <span class="project-copy">
+                    <b>小情歌</b>
+                    <span class="mono">03:52 · F 调</span>
+                  </span>
+                  <span class="project-state is-warn">待校对</span>
+                </button>
+              </div>
+
+              <div class="storage-row">
+                <span><svg class="icon"><use href="#i-folder"/></svg>本机工程</span>
+                <span class="mono">1.8 GB</span>
+                <span class="summary-spacer"></span>
+                <button type="button" data-toast="打开设置">设置</button>
+              </div>
+
+              <nav class="phone-tabs" aria-label="主导航">
+                <button type="button" data-goto="phone-edit"><svg class="icon"><use href="#i-edit"/></svg><span>编辑</span></button>
+                <button type="button" data-goto="phone-lyrics"><svg class="icon"><use href="#i-lyrics"/></svg><span>歌词</span></button>
+                <button type="button" data-goto="phone-chords"><svg class="icon"><use href="#i-chord"/></svg><span>和弦</span></button>
+                <button class="is-on" type="button" data-goto="phone-project"><svg class="icon"><use href="#i-folder"/></svg><span>工程</span></button>
+              </nav>
+
+              <div class="sheet-backdrop" data-export-backdrop></div>
+              <section class="export-sheet" data-export-sheet>
+                <span class="sheet-grabber"></span>
+                <div class="sheet-head">
+                  <div>
+                    <h3>导出成片</h3>
+                    <p>1080 × 1920 · H.264 · AAC</p>
+                  </div>
+                  <button class="icon-button" type="button" data-export-close>
+                    <svg class="icon"><use href="#i-close"/></svg>
+                  </button>
+                </div>
+                <div class="segmented">
+                  <button class="is-on" type="button" data-toast="竖屏 1080 × 1920">竖屏 9:16</button>
+                  <button type="button" data-toast="横屏 1920 × 1080">横屏 16:9</button>
+                </div>
+                <div class="export-rows">
+                  <div><span>字幕</span><b>已烧进画面</b></div>
+                  <div><span>附加 SRT</span><b class="is-muted">关</b></div>
+                  <div><span>预计</span><b>约 2 分 10 秒</b></div>
+                </div>
+                <div class="export-progress" data-export-progress>
+                  <div class="export-progress-head"><span>正在渲染</span><b class="mono" data-export-percent>0%</b></div>
+                  <span class="export-progress-track"><i data-export-fill></i></span>
+                  <p>保持屏幕常亮 · 可以随时取消</p>
+                </div>
+                <button class="primary-button export-start" type="button" data-export-start>开始导出</button>
+                <button class="sheet-later" type="button" data-export-close>稍后再说</button>
+              </section>
+              <button class="reopen-export" type="button" data-export-open>
+                <svg class="icon"><use href="#i-export"/></svg>
+                导出
+              </button>
+            </div>
+          </ios-shell>
+          <div class="device-notes">
+            <span>新建工程只有“视频 + 曲谱”两个入口</span>
+            <span>导出是底部抽屉，不跳转新页面</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section ipad-section" id="ipad">
+      <header class="section-head">
+        <div>
+          <div class="eyebrow">02 · IPAD</div>
+          <h2>把整张工作台摊开</h2>
+        </div>
+        <p>左侧工程、中间预览、右侧检查器。点右上角的收起按钮，检查器会让位给视频。</p>
+      </header>
+
+      <div class="ipad-layout">
+        <div class="ipad-scale">
+          <div class="ipad-shell">
+            <div class="ipad-screen" data-screen-label="iPad · 编辑">
+              <aside class="ipad-rail">
+                <div class="brand">
+                  <span class="brand-mark">M</span>
+                  <span class="brand-copy"><b>MyGo Uke</b><i>POCKET STUDIO</i></span>
+                </div>
+                <button class="rail-new" type="button" data-toast="导入视频与曲谱">
+                  <svg class="icon"><use href="#i-plus"/></svg>
+                  新建工程
+                </button>
+                <div class="rail-label">工程</div>
+                <button class="rail-project is-on" type="button" data-toast="打开夏夜来信">
+                  <span class="project-thumb tone-0"><i>C</i></span>
+                  <span><b>夏夜来信</b><em class="mono">03:18 · C 调</em></span>
+                </button>
+                <button class="rail-project" type="button" data-toast="打开晴天">
+                  <span class="project-thumb tone-1"><i>G</i></span>
+                  <span><b>晴天</b><em class="mono">04:29 · G 调</em></span>
+                </button>
+                <button class="rail-project" type="button" data-toast="打开小情歌">
+                  <span class="project-thumb tone-2"><i>Am</i></span>
+                  <span><b>小情歌</b><em class="mono">03:52 · F 调</em></span>
+                </button>
+                <span class="rail-spacer"></span>
+                <button class="rail-settings" type="button" data-toast="打开设置">
+                  <svg class="icon"><use href="#i-settings"/></svg>
+                  设置
+                </button>
+              </aside>
+
+              <main class="ipad-stage">
+                <header class="stage-head">
+                  <div class="stage-title">
+                    <span class="eyebrow">EDITING · VERTICAL 9:16</span>
+                    <h2>夏夜来信</h2>
+                    <p class="mono">03:18 · 68 BPM · 4/4 · C 调 · Capo 0</p>
+                  </div>
+                  <div class="stage-actions">
+                    <span class="badge"><i class="status-dot is-good"></i>曲谱 · 和弦来自曲谱</span>
+                    <button class="soft-chip" type="button" data-toast="重新转写会覆盖手动编辑">重新转写</button>
+                    <div class="segmented is-small">
+                      <button class="is-on" type="button" data-toast="竖屏 1080 × 1920">竖屏</button>
+                      <button type="button" data-toast="横屏 1920 × 1080">横屏</button>
+                    </div>
+                    <button class="primary-button is-small" type="button" data-export-open-ipad>导出成片</button>
+                    <button class="icon-button inspector-toggle" type="button" data-inspector-toggle aria-label="收起检查器">
+                      <svg class="icon"><use href="#i-chevron-right"/></svg>
+                    </button>
+                  </div>
+                </header>
+
+                <div class="stage-canvas" data-ipad-scope>
+                  <div class="canvas-tag mono">播放头 00:42.0</div>
+                  <div class="video-frame ipad-video" data-video>
+                    <img class="video-still" src="assets/ukulele-still.jpg" alt="尤克里里弹唱视频预览">
+                    <span class="video-scrim video-scrim-top"></span>
+                    <span class="video-scrim video-scrim-bottom"></span>
+                    <div class="overlay-top">
+                      <button class="chord-chip chord-chip-current" type="button" data-chord="C">
+                        <b data-chord-label>C</b>
+                        <span class="beat-row">1 · 2 · 3 · 4</span>
+                      </button>
+                      <button class="chord-chip" type="button" data-chord="G">G</button>
+                      <button class="chord-chip" type="button" data-chord="Am">Am</button>
+                      <span class="overlay-spacer"></span>
+                      <span class="fret-card" data-fret-card>
+                        <svg viewBox="0 0 64 74" aria-hidden="true">
+                          <g data-shape="C"><circle cx="52" cy="46" r="3.1" class="fret-dot"/></g>
+                          <g data-shape="G" style="display:none">
+                            <circle cx="24" cy="32.5" r="3.1" class="fret-dot"/>
+                            <circle cx="38" cy="46" r="3.1" class="fret-dot"/>
+                            <circle cx="52" cy="32.5" r="3.1" class="fret-dot"/>
+                          </g>
+                          <g data-shape="Am" style="display:none"><circle cx="10" cy="32.5" r="3.1" class="fret-dot"/></g>
+                          <g class="fret-grid">
+                            <path d="M10 14v48"/><path d="M24 14v48"/><path d="M38 14v48"/><path d="M52 14v48"/>
+                            <path d="M10 14h42" class="fret-nut"/>
+                            <path d="M10 27.5h42"/><path d="M10 41h42"/><path d="M10 54.5h42"/><path d="M10 68h42"/>
+                          </g>
+                        </svg>
+                        <span class="fret-name" data-fret-name>C</span>
+                      </span>
+                    </div>
+                    <div class="overlay-bottom">
+                      <div class="lyric-current"><span>我把</span><span class="lyric-hot">心</span><span>事弹成了海</span></div>
+                      <div class="lyric-next"><span>你说月色刚好</span><span>别急着离开</span></div>
+                    </div>
+                    <span class="video-hint">点画面播放 / 暂停</span>
+                  </div>
+                  <div class="canvas-note">
+                    <span class="mono">9:16 · 1080 × 1920</span>
+                    <p>字幕、和弦、指法都在同一个叠加层里，导出与预览同源。</p>
+                  </div>
+                </div>
+
+                <div class="ipad-transport">
+                  <div class="transport-top">
+                    <span class="mono time-now" data-clock>00:42.0</span>
+                    <button class="round-mini" type="button" data-seek="-5">−5</button>
+                    <button class="play-button is-small" type="button" data-play aria-label="播放">
+                      <svg class="icon play-icon"><use href="#i-play"/></svg>
+                      <svg class="icon pause-icon"><use href="#i-pause"/></svg>
+                    </button>
+                    <button class="round-mini" type="button" data-seek="5">+5</button>
+                    <span class="mono time-total">03:18.0</span>
+                    <span class="transport-spacer"></span>
+                    <button class="icon-button" type="button" data-mute aria-label="静音">
+                      <svg class="icon volume-icon"><use href="#i-volume"/></svg>
+                      <svg class="icon mute-icon"><use href="#i-mute"/></svg>
+                    </button>
+                    <button class="soft-chip" type="button" data-toast="安全区已开启">安全区</button>
+                  </div>
+                  <div class="timeline" data-timeline>
+                    <div class="waveform" data-waveform></div>
+                    <span class="timeline-fill"></span>
+                    <span class="playhead"></span>
+                  </div>
+                </div>
+              </main>
+
+              <aside class="ipad-inspector">
+                <div class="ins-tabs">
+                  <button class="is-on" type="button" data-ins-tab="lyrics">字幕</button>
+                  <button type="button" data-ins-tab="bars">小节</button>
+                  <button type="button" data-ins-tab="style">样式</button>
+                </div>
+
+                <div class="ins-panel is-on" data-ins-panel="lyrics">
+                  <div class="ins-head">
+                    <span>逐句字幕 <b class="mono">12 句</b></span>
+                    <button class="soft-chip" type="button" data-toast="定位到当前句">定位</button>
+                  </div>
+                  <div class="ins-list">
+                    <button class="ins-line" type="button" data-line data-time="38.2">
+                      <span class="ins-time mono">00:38.2</span>
+                      <span class="ins-copy"><span class="ins-chords"><b>F</b><b>C</b></span><span class="ins-text">晚风把蝉声吹进窗台</span></span>
+                      <span class="ins-dot status-dot is-good"></span>
+                    </button>
+                    <button class="ins-line is-current" type="button" data-line data-time="42.0">
+                      <span class="ins-time mono">00:42.0</span>
+                      <span class="ins-copy"><span class="ins-chords"><b>C</b><b>G</b><b>Am</b></span><span class="ins-text">我把心事弹成了海</span></span>
+                      <span class="ins-dot status-dot is-warn"></span>
+                    </button>
+                    <button class="ins-line" type="button" data-line data-time="45.8">
+                      <span class="ins-time mono">00:45.8</span>
+                      <span class="ins-copy"><span class="ins-chords"><b>F</b><b>C</b></span><span class="ins-text">你说月色刚好 别急着离开</span></span>
+                      <span class="ins-dot status-dot is-good"></span>
+                    </button>
+                    <button class="ins-line" type="button" data-line data-time="50.1">
+                      <span class="ins-time mono">00:50.1</span>
+                      <span class="ins-copy"><span class="ins-chords"><b>Dm</b><b>G</b></span><span class="ins-text">这一封夏夜的信 还没拆</span></span>
+                      <span class="ins-dot status-dot is-good"></span>
+                    </button>
+                    <button class="ins-line" type="button" data-line data-time="54.4">
+                      <span class="ins-time mono">00:54.4</span>
+                      <span class="ins-copy"><span class="ins-chords"><b>C</b><b>G</b></span><span class="ins-text">灯影落在琴弦上</span></span>
+                      <span class="ins-dot status-dot is-good"></span>
+                    </button>
+                  </div>
+                  <div class="ins-foot">
+                    <button class="soft-chip" type="button" data-toast="重命名工程">工程设置</button>
+                    <button class="primary-button is-small" type="button" data-toast="打开逐句编辑">编辑选中</button>
+                  </div>
+                </div>
+
+                <div class="ins-panel" data-ins-panel="bars">
+                  <div class="ins-head"><span>小节与和弦 <b class="mono">12 小节</b></span><button class="soft-chip" type="button" data-toast="从曲谱重新对齐">重新对齐</button></div>
+                  <div class="ins-list">
+                    <div class="ins-bar is-current"><span class="mono">12</span><b>C</b><span class="mono">1 · 2 · 3 · 4</span><em>92%</em><button type="button" data-toast="编辑第 12 小节">改</button></div>
+                    <div class="ins-bar"><span class="mono">13</span><b>G</b><span class="mono">1 · 2 · 3 · 4</span><em>88%</em><button type="button" data-toast="编辑第 13 小节">改</button></div>
+                    <div class="ins-bar"><span class="mono">14</span><b>Am</b><span class="mono">1 · 2 · 3 · 4</span><em class="is-warn">待确认</em><button type="button" data-toast="编辑第 14 小节">改</button></div>
+                    <div class="ins-bar"><span class="mono">15</span><b>Em</b><span class="mono">1 · 2 · 3 · 4</span><em>90%</em><button type="button" data-toast="编辑第 15 小节">改</button></div>
+                    <div class="ins-bar"><span class="mono">16</span><b>F</b><span class="mono">1 · 2 · 3 · 4</span><em>86%</em><button type="button" data-toast="编辑第 16 小节">改</button></div>
+                  </div>
+                  <div class="ins-foot"><span class="mono">按字对齐 · 曲谱可信 92%</span><button class="primary-button is-small" type="button" data-toast="编辑当前小节">改当前小节</button></div>
+                </div>
+
+                <div class="ins-panel" data-ins-panel="style">
+                  <div class="ins-head"><span>叠加样式</span><button class="soft-chip" type="button" data-toast="恢复默认样式">重置</button></div>
+                  <div class="style-panel">
+                    <label class="range-row"><span>和弦大小</span><b class="mono">64</b><input type="range" min="32" max="96" value="64" data-range="chord"></label>
+                    <label class="range-row"><span>字幕大小</span><b class="mono">60</b><input type="range" min="32" max="96" value="60" data-range="sub"></label>
+                    <label class="range-row"><span>字幕高度</span><b class="mono">78%</b><input type="range" min="55" max="92" value="78" data-range="y"></label>
+                    <div class="style-block">
+                      <span>字幕对齐</span>
+                      <div class="segmented is-small">
+                        <button type="button" data-toast="左对齐">左</button>
+                        <button class="is-on" type="button" data-toast="交错对齐">交错</button>
+                        <button type="button" data-toast="右对齐">右</button>
+                      </div>
+                    </div>
+                    <div class="style-block">
+                      <span>强调色</span>
+                      <div class="swatches">
+                        <button class="swatch is-on" type="button" style="--sw:#F3B544" data-toast="琥珀"></button>
+                        <button class="swatch" type="button" style="--sw:#79C39A" data-toast="薄荷"></button>
+                        <button class="swatch" type="button" style="--sw:#7FA7C9" data-toast="雾蓝"></button>
+                        <button class="swatch" type="button" style="--sw:#D88663" data-toast="陶土"></button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="ins-foot"><span class="mono">改动即时同步到预览</span><button class="primary-button is-small" type="button" data-toast="样式已保存">保存样式</button></div>
+                </div>
+              </aside>
+
+              <div class="ipad-export-backdrop" data-export-backdrop-ipad></div>
+              <section class="ipad-export" data-export-sheet-ipad>
+                <div class="ipad-export-head">
+                  <div><span class="eyebrow">EXPORT</span><h3>导出成片</h3><p class="mono">1080 × 1920 · H.264 · AAC · 30fps</p></div>
+                  <button class="icon-button" type="button" data-export-close-ipad><svg class="icon"><use href="#i-close"/></svg></button>
+                </div>
+                <div class="export-rows">
+                  <div><span>画幅</span><b>竖屏 9:16</b></div>
+                  <div><span>字幕</span><b>已烧进画面</b></div>
+                  <div><span>附加 SRT</span><b class="is-muted">关</b></div>
+                  <div><span>预计</span><b>约 2 分 10 秒</b></div>
+                </div>
+                <div class="export-progress" data-export-progress-ipad>
+                  <div class="export-progress-head"><span>正在渲染</span><b class="mono" data-export-percent-ipad>0%</b></div>
+                  <span class="export-progress-track"><i data-export-fill-ipad></i></span>
+                  <p>保持屏幕常亮 · 可以随时取消</p>
+                </div>
+                <div class="ipad-export-actions">
+                  <button class="soft-chip" type="button" data-export-close-ipad>取消</button>
+                  <button class="primary-button" type="button" data-export-start-ipad>开始导出</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <aside class="ipad-notes" aria-label="iPad 设计说明">
+          <div class="note">
+            <span class="note-no">01</span>
+            <div><b>工程栏 226</b><p>始终可见。工程切换不离开当前编辑，只替换中间与右侧内容。</p></div>
+          </div>
+          <div class="note">
+            <span class="note-no">02</span>
+            <div><b>预览区自适应</b><p>检查器展开时视频保持完整比例；收起后画布变宽，视频不拉伸。</p></div>
+          </div>
+          <div class="note">
+            <span class="note-no">03</span>
+            <div><b>检查器 304</b><p>字幕、小节、样式共用一套滚动区域；底部动作固定，不随列表滚走。</p></div>
+          </div>
+          <div class="note">
+            <span class="note-no">04</span>
+            <div><b>时间轴是第二聚焦点</b><p>播放头贯穿波形和小节，点歌词、点和弦都只改变这一个时间点。</p></div>
+          </div>
+          <div class="note is-interactive">
+            <span class="note-no">↗</span>
+            <div><b>试试右上角的收起按钮</b><p>iPad 分屏或竖屏时，检查器会收起，中间画布自动扩宽。</p></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="rules">
+      <header class="section-head">
+        <div>
+          <div class="eyebrow">03 · RULES</div>
+          <h2>移动端的硬约束</h2>
+        </div>
+        <p>不是把桌面缩小，而是把决定性的信息留在手里。</p>
+      </header>
+      <div class="rule-grid">
+        <article class="rule-card"><span class="mono">01</span><h3>一屏只做一件事</h3><p>编辑、歌词、和弦、工程各自成页，避免在手机上堆三栏。</p></article>
+        <article class="rule-card"><span class="mono">02</span><h3>44pt 起点的触控</h3><p>播放、跳转、切和弦都按手指尺寸设计；hover 只作为桌面增强。</p></article>
+        <article class="rule-card"><span class="mono">03</span><h3>底部动作不滚走</h3><p>“编辑当前句”“开始导出”固定在安全区上方，列表只滚内容。</p></article>
+        <article class="rule-card"><span class="mono">04</span><h3>字幕不遮脸</h3><p>当前句和下一句分层，背景只做可读性，不把整块画面压黑。</p></article>
+      </div>
+    </section>
+
+    <footer class="board-foot">
+      <span class="mono">MYGO UKE · MOBILE / 2026-11-24</span>
+      <span>视觉基线：A · 录音棚 · 402 × 874 / 1194 × 834</span>
+      <span class="mono">INTERACTIVE SPEC</span>
+    </footer>
+  </main>
+
+  <div class="toast" data-toast-box role="status" aria-live="polite"></div>
+</body>
+</html>

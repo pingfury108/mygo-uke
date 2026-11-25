@@ -14,7 +14,7 @@ func (a *app) inspector(c *ui.Context) {
 	if a.tab < 0 || a.tab > 2 {
 		a.tab = 0
 	}
-	ui.Column(c).Width(326).Background(pal.panel).
+	ui.Column(c).Width(inspectorWidth(c)).Background(pal.panel).
 		DrawOver(func(p *ui.Painter, r ui.Rect) {
 			p.Line(r.X+0.5, r.Y, r.X+0.5, r.Y+r.H, 1, pal.line)
 		}).Children(func() {

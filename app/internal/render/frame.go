@@ -510,7 +510,7 @@ func lineAt(p *project.Project, t float64) (project.Line, int, bool) {
 		return project.Line{}, -1, false
 	}
 	for i, line := range p.Lines {
-		if t >= line.Start && t <= line.End {
+		if t >= line.Start && t < line.End {
 			return line, i, true
 		}
 	}

@@ -19,30 +19,38 @@ func (a *app) settingsModal(c *ui.Context) {
 	if a.settingsErr != "" {
 		sub = a.settingsErr
 	}
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(520).Gap(12).Children(func() {
-			modalTitle(c, "设置", sub)
-			settingsField(c, "火山 API Key", "留空则不跑语音转写", &a.settingsDraft.VolcanoAPIKey, true)
+	a.dialog(c, &open, 520, 0.92, func() {
+		modalTitle(c, "设置", sub)
+		settingsField(c, "火山 API Key", "留空则不跑语音转写", &a.settingsDraft.VolcanoAPIKey, true)
+		if narrowWidth(c) {
+			settingsField(c, "资源 ID", "默认 2.0 小时版", &a.settingsDraft.VolcanoResourceID, false)
+			settingsField(c, "模型", "bigmodel", &a.settingsDraft.VolcanoModel, false)
+		} else {
 			ui.Row(c).Gap(8).Children(func() {
 				settingsField(c, "资源 ID", "默认 2.0 小时版", &a.settingsDraft.VolcanoResourceID, false)
 				settingsField(c, "模型", "bigmodel", &a.settingsDraft.VolcanoModel, false)
 			})
-			settingsField(c, "WebSocket", "留空使用官方 v3 端点", &a.settingsDraft.VolcanoWSURL, false)
-			sectionLabel(c, "曲谱识别 · OpenAI 兼容", "")
-			settingsField(c, "Base URL", "留空使用 OpenAI 官方端点", &a.settingsDraft.SheetBaseURL, false)
+		}
+		settingsField(c, "WebSocket", "留空使用官方 v3 端点", &a.settingsDraft.VolcanoWSURL, false)
+		sectionLabel(c, "曲谱识别 · OpenAI 兼容", "")
+		settingsField(c, "Base URL", "留空使用 OpenAI 官方端点", &a.settingsDraft.SheetBaseURL, false)
+		if narrowWidth(c) {
+			settingsField(c, "API Key", "用于解析曲谱图片", &a.settingsDraft.SheetAPIKey, true)
+			settingsField(c, "模型", "支持图片输入的模型", &a.settingsDraft.SheetModel, false)
+		} else {
 			ui.Row(c).Gap(8).Children(func() {
 				settingsField(c, "API Key", "用于解析曲谱图片", &a.settingsDraft.SheetAPIKey, true)
 				settingsField(c, "模型", "支持图片输入的模型", &a.settingsDraft.SheetModel, false)
 			})
-			text(c, "图片识别需要支持视觉输入的模型；纯文本模型只能用粘贴文本曲谱。", 9, pal.faint)
-			mono(c, settingsPath(), 8.5, pal.faint).SingleLine()
-			if a.settingsErr != "" {
-				text(c, a.settingsErr, 9.5, pal.warn)
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ghostButton(c, "取消", func() { a.modal = modalNone })
-				primaryButton(c, "保存设置", func() { a.saveSettings(c) })
-			})
+		}
+		text(c, "图片识别需要支持视觉输入的模型；纯文本模型只能用粘贴文本曲谱。", 9, pal.faint)
+		mono(c, settingsPath(), 8.5, pal.faint).SingleLine()
+		if a.settingsErr != "" {
+			text(c, a.settingsErr, 9.5, pal.warn)
+		}
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ghostButton(c, "取消", func() { a.modal = modalNone })
+			primaryButton(c, "保存设置", func() { a.saveSettings(c) })
 		})
 	})
 	if !open {

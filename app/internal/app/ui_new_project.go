@@ -19,6 +19,7 @@ func (a *app) openNewProject() {
 	a.sheetNote = ""
 	a.sheetTab = 0
 	a.sheetPaste = ""
+	a.resetStagedChart()
 	a.newVideo = ""
 	a.newChart = nil
 	a.newChartOrigin = chartOrigin{}
@@ -27,46 +28,49 @@ func (a *app) openNewProject() {
 
 func (a *app) newProjectModal(c *ui.Context) {
 	open := true
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(580).Gap(12).Children(func() {
-			modalTitle(c, "新建工程", "一次选择视频和曲谱；字幕、逐字和弦与小节一起生成")
-			a.newVideoCard(c)
-			sectionLabel(c, "曲谱", "可选但推荐")
-			segment(c, []string{"图片曲谱", "文本曲谱"}, &a.sheetTab)
-			if a.sheetTab == 0 {
-				a.sheetImagePane(c)
-			} else {
-				a.sheetTextPane(c)
-			}
-			if a.sheetRunning {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
-					Radius(8).Background(pal.card).Children(func() {
-					dot(c, pal.accent)
-					text(c, "正在识别曲谱图片，通常需要几秒到半分钟…", 10, pal.muted)
-				})
-			}
-			if a.sheetNote != "" {
-				text(c, a.sheetNote, 9.5, pal.good)
-			}
-			if a.sheetErr != "" {
-				ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
-					AlignItems(ui.Center).Children(func() {
-					dot(c, pal.warn)
-					text(c, a.sheetErr, 9.5, pal.warn)
-				})
-			}
-			hint := "不导入曲谱也可以创建，但不会有和弦、BPM 和小节。"
-			if a.pendingChartReady() {
-				hint = "曲谱会和视频时间轴自动对齐；创建后仍可逐字修改和弦。"
-			}
-			if a.asrConfig.APIKey == "" {
-				hint += " 未配置火山 ASR：曲谱行会按视频时长平均分布。"
-			}
-			text(c, hint, 9, pal.faint)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				ghostButton(c, "取消", a.closeSheet)
-				primaryButton(c, "创建工程", a.createNewProject)
+	fraction := float32(0.56)
+	if a.stagedChart.Name != "" {
+		fraction = 0.82
+	}
+	a.dialog(c, &open, 580, fraction, func() {
+		a.sheetPasteShortcut(c)
+		modalTitle(c, "新建工程", "一次选择视频和曲谱；字幕、逐字和弦与小节一起生成")
+		a.newVideoCard(c)
+		sectionLabel(c, "曲谱", "可选但推荐")
+		segment(c, []string{"图片曲谱", "文本曲谱"}, &a.sheetTab)
+		if a.sheetTab == 0 {
+			a.sheetImagePane(c)
+		} else {
+			a.sheetTextPane(c)
+		}
+		if a.sheetRunning {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
+				Radius(8).Background(pal.card).Children(func() {
+				dot(c, pal.accent)
+				text(c, "正在识别曲谱图片，通常需要几秒到半分钟…", 10, pal.muted)
 			})
+		}
+		if a.sheetNote != "" {
+			text(c, a.sheetNote, 9.5, pal.good)
+		}
+		if a.sheetErr != "" {
+			ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
+				AlignItems(ui.Center).Children(func() {
+				dot(c, pal.warn)
+				text(c, a.sheetErr, 9.5, pal.warn)
+			})
+		}
+		hint := "不导入曲谱也可以创建，但不会有和弦、BPM 和小节。"
+		if a.pendingChartReady() {
+			hint = "曲谱会和视频时间轴自动对齐；创建后仍可逐字修改和弦。"
+		}
+		if a.asrConfig.APIKey == "" {
+			hint += " 未配置火山 ASR：曲谱行会按视频时长平均分布。"
+		}
+		text(c, hint, 9, pal.faint)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			ghostButton(c, "取消", a.closeSheet)
+			primaryButton(c, "创建工程", a.createNewProject)
 		})
 	})
 	if !open {
@@ -161,6 +165,9 @@ func (a *app) pendingChart() (*sheet.Sheet, chartOrigin, error) {
 		if a.newChart != nil {
 			return a.newChart, a.newChartOrigin, nil
 		}
+		if a.stagedChart.Name != "" {
+			return nil, chartOrigin{}, fmt.Errorf("曲谱图片还没识别，先点「开始识别」")
+		}
 		if a.newChartOrigin.Name != "" {
 			return nil, chartOrigin{}, fmt.Errorf("曲谱图片还没有解析成功，请重新选择")
 		}
@@ -170,6 +177,9 @@ func (a *app) pendingChart() (*sheet.Sheet, chartOrigin, error) {
 	if text == "" {
 		if a.newChart != nil {
 			return a.newChart, a.newChartOrigin, nil
+		}
+		if a.stagedChart.Name != "" {
+			return nil, chartOrigin{}, fmt.Errorf("曲谱图片还没识别，先点「开始识别」")
 		}
 		return nil, chartOrigin{}, nil
 	}

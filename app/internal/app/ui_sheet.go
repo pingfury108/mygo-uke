@@ -20,6 +20,19 @@ func (a *app) openSheetModal() {
 	a.sheetErr = ""
 	a.sheetNote = ""
 	a.sheetTab = 0
+	a.resetStagedChart()
+	if a.proj != nil && a.proj.ChartImage != "" && a.projPath != "" {
+		path := filepath.Join(filepath.Dir(a.projPath), a.proj.ChartImage)
+		if _, err := os.Stat(path); err == nil {
+			name := a.proj.ChartName
+			if strings.TrimSpace(name) == "" {
+				name = filepath.Base(path)
+			}
+			a.stagedChart = chartOrigin{Name: name, Path: path}
+			a.stagedPreview = decodeChartImage(a.stagedChart)
+			a.sheetNote = "当前曲谱已应用；重新识别会按这张图替换字幕与和弦"
+		}
+	}
 	if a.proj != nil && a.proj.ChartText != "" {
 		if strings.TrimSpace(a.sheetPaste) == "" {
 			a.sheetPaste = a.proj.ChartText
@@ -35,49 +48,54 @@ func (a *app) sheetModal(c *ui.Context) {
 	if a.proj != nil && a.proj.Title != "" {
 		detail = fmt.Sprintf("自动对齐到「%s」的时间轴，并替换字幕与和弦；导入后仍可逐条修改", a.proj.Title)
 	}
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(560).Gap(12).Children(func() {
-			modalTitle(c, "导入曲谱", detail)
-			if a.proj == nil {
-				text(c, "请先导入视频，曲谱需要对齐到音频时间轴。", 10, pal.warn)
-			} else {
+	fraction := float32(0.5)
+	if a.stagedChart.Name != "" {
+		fraction = 0.8
+	}
+	a.dialog(c, &open, 560, fraction, func() {
+		a.sheetPasteShortcut(c)
+		modalTitle(c, "导入曲谱", detail)
+		if a.proj == nil {
+			text(c, "请先导入视频，曲谱需要对齐到音频时间轴。", 10, pal.warn)
+		} else {
+			if a.stagedChart.Name == "" {
 				a.chartSourceCard(c)
-				segment(c, []string{"图片曲谱", "文本曲谱"}, &a.sheetTab)
-				if a.sheetTab == 0 {
-					a.sheetImagePane(c)
-				} else {
-					a.sheetTextPane(c)
-				}
 			}
+			segment(c, []string{"图片曲谱", "文本曲谱"}, &a.sheetTab)
+			if a.sheetTab == 0 {
+				a.sheetImagePane(c)
+			} else {
+				a.sheetTextPane(c)
+			}
+		}
 
-			if a.sheetRunning {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
-					Radius(8).Background(pal.card).Children(func() {
-					dot(c, pal.accent)
-					text(c, "正在识别曲谱图片，通常需要几秒到半分钟…", 10, pal.muted)
-				})
-			}
-			if a.sheetNote != "" {
-				text(c, a.sheetNote, 9.5, pal.good)
-			}
-			if a.sheetErr != "" {
-				ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
-					AlignItems(ui.Center).Children(func() {
-					dot(c, pal.warn)
-					text(c, a.sheetErr, 9.5, pal.warn)
-				})
-			}
-
-			ui.Row(c).Justify(ui.End).Children(func() {
-				closeLabel := "取消"
-				if a.sheetNote != "" {
-					closeLabel = "完成"
-				}
-				if a.sheetRunning {
-					closeLabel = "取消识别"
-				}
-				ghostButton(c, closeLabel, a.closeSheet)
+		if a.sheetRunning {
+			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 10, 8, 10).
+				Radius(8).Background(pal.card).Children(func() {
+				dot(c, pal.accent)
+				text(c, "正在识别曲谱图片，通常需要几秒到半分钟…", 10, pal.muted)
 			})
+		}
+		if a.sheetNote != "" {
+			text(c, a.sheetNote, 9.5, pal.good)
+		}
+		if a.sheetErr != "" {
+			ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
+				AlignItems(ui.Center).Children(func() {
+				dot(c, pal.warn)
+				text(c, a.sheetErr, 9.5, pal.warn)
+			})
+		}
+
+		ui.Row(c).Justify(ui.End).Children(func() {
+			closeLabel := "取消"
+			if a.sheetNote != "" {
+				closeLabel = "完成"
+			}
+			if a.sheetRunning {
+				closeLabel = "取消识别"
+			}
+			ghostButton(c, closeLabel, a.closeSheet)
 		})
 	})
 	if !open {
@@ -88,6 +106,10 @@ func (a *app) sheetModal(c *ui.Context) {
 }
 
 func (a *app) sheetImagePane(c *ui.Context) {
+	if a.stagedChart.Name != "" {
+		a.sheetStagedImage(c)
+		return
+	}
 	if !a.settings.sheetConfig().Ready() {
 		ui.Row(c).Padding(10, 12, 10, 12).Radius(8).Background(pal.warnBG).
 			AlignItems(ui.Center).Children(func() {
@@ -108,9 +130,6 @@ func (a *app) sheetImagePane(c *ui.Context) {
 	}
 
 	zoneLabel := "拖入曲谱图片，或点击选择"
-	if a.sheetMode == sheetForNew && a.newChart != nil {
-		zoneLabel = "已识别 · 点击更换曲谱图片"
-	}
 	zone := ui.ButtonBase(c).FillWidth().Height(104).Radius(10).Center().
 		Background(pal.card).Border(1, pal.lineStrong).Label("选择曲谱图片").FocusRing(false)
 	if zone.Hovered() {
@@ -123,6 +142,55 @@ func (a *app) sheetImagePane(c *ui.Context) {
 			text(c, "PNG / JPG / WebP · 也可以按 ⌘V 粘贴", 9, pal.muted)
 		})
 	})
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ghostButton(c, "从剪贴板粘贴", a.pasteSheetClipboard)
+		text(c, "截图或复制的图片", 8.5, pal.faint).SingleLine()
+	})
+}
+
+func (a *app) sheetStagedImage(c *ui.Context) {
+	ui.Column(c).Gap(7).Padding(8, 9, 8, 9).Radius(10).
+		Background(pal.card).Border(1, pal.line).Children(func() {
+		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+			label(c, "待识别的曲谱", 9.5, pal.muted, 600)
+			ui.Box(c).Grow(1)
+			mono(c, a.stagedChart.display(), 8.5, pal.faint).SingleLine()
+		})
+		box := ui.Box(c).FillWidth().Height(168).Radius(8).
+			Background(pal.bg2).Clip()
+		if a.stagedPreview != nil {
+			box.Children(func() {
+				ui.Image(c, a.stagedPreview).Fill().Fit(ui.Contain)
+			})
+		} else {
+			box.Center().Children(func() {
+				text(c, "图片无法预览，仍可直接识别", 9.5, pal.faint)
+			})
+		}
+	})
+	if a.sheetRunning {
+		return
+	}
+	if !a.settings.sheetConfig().Ready() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+			ghostButton(c, "更换图片", a.pickSheetImage)
+			primaryButton(c, "去设置", func() {
+				a.closeSheet()
+				a.openSettings()
+			})
+		})
+		text(c, "识别前需要先在设置里配置支持图片输入的模型。", 8.5, pal.faint)
+		return
+	}
+	action := "开始识别"
+	if a.sheetNote != "" {
+		action = "重新识别"
+	}
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
+		ghostButton(c, "更换图片", a.pickSheetImage)
+		primaryButton(c, action, a.parseStagedSheetImage)
+	})
+	text(c, "确认图片无误后再识别；识别会替换当前字幕与和弦。", 8.5, pal.faint)
 }
 
 func (a *app) sheetTextPane(c *ui.Context) {
@@ -395,21 +463,74 @@ func (a *app) pickSheetImage() {
 		if len(paths) == 0 {
 			return
 		}
-		mygo.RunOnMain(func() { a.startSheetImage(paths[0]) })
+		mygo.RunOnMain(func() { a.stageSheetImage(paths[0]) })
 	}()
 }
 
-func (a *app) startSheetImage(path string) {
-	origin := chartOrigin{Name: filepath.Base(path), Path: path}
-	a.startChartParse(origin, func(ctx context.Context, client *sheet.Client) (*sheet.Sheet, error) {
-		return client.ParseImage(ctx, path)
-	})
+func (a *app) stageSheetImage(path string) {
+	a.stageChartImage(chartOrigin{Name: filepath.Base(path), Path: path})
 }
 
-func (a *app) startSheetImageData(data []byte) {
-	origin := chartOrigin{Name: "剪贴板图片", Data: data}
+func (a *app) stageSheetImageData(data []byte) {
+	a.stageChartImage(chartOrigin{Name: "剪贴板图片", Data: data})
+}
+
+func (a *app) stageChartImage(origin chartOrigin) {
+	if a.sheetRunning {
+		a.sheetErr = "图片还在识别，请稍候"
+		a.invalidate()
+		return
+	}
+	a.sheetTab = 0
+	a.stagedChart = origin
+	a.stagedPreview = decodeChartImage(origin)
+	a.sheetErr = ""
+	a.sheetNote = ""
+	if a.sheetMode == sheetForNew {
+		a.newChart = nil
+		a.newChartOrigin = chartOrigin{}
+	}
+	a.setSheetModal()
+	a.invalidate()
+}
+
+func (a *app) resetStagedChart() {
+	a.stagedChart = chartOrigin{}
+	a.stagedPreview = nil
+}
+
+func decodeChartImage(origin chartOrigin) ui.ImageSource {
+	data := origin.Data
+	if len(data) == 0 && origin.Path != "" {
+		data, _ = os.ReadFile(origin.Path)
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	src, err := ui.DecodeImage(data)
+	if err != nil {
+		return nil
+	}
+	return src
+}
+
+func (a *app) parseStagedSheetImage() {
+	origin := a.stagedChart
+	if origin.Name == "" {
+		a.sheetErr = "先粘贴或选择一张曲谱图片"
+		a.invalidate()
+		return
+	}
+	if len(origin.Data) > 0 {
+		data := origin.Data
+		a.startChartParse(origin, func(ctx context.Context, client *sheet.Client) (*sheet.Sheet, error) {
+			return client.ParseImageData(ctx, data, "image/png")
+		})
+		return
+	}
+	path := origin.Path
 	a.startChartParse(origin, func(ctx context.Context, client *sheet.Client) (*sheet.Sheet, error) {
-		return client.ParseImageData(ctx, data, "image/png")
+		return client.ParseImage(ctx, path)
 	})
 }
 
@@ -448,7 +569,7 @@ func (a *app) startChartParse(origin chartOrigin, parse func(context.Context, *s
 		if err == nil {
 			parsed, err = parse(ctx, client)
 		}
-		mygo.RunOnMain(func() {
+		a.sheetDispatch(func() {
 			if seq != a.sheetSeq {
 				return
 			}
@@ -480,18 +601,20 @@ func (a *app) pasteSheetClipboard() {
 		return
 	}
 	if data := mygo.Clipboard.ReadImage(); len(data) > 0 {
-		a.startSheetImageData(data)
+		a.stageSheetImageData(data)
 		return
 	}
 	if files, err := mygo.Clipboard.ReadFiles(); err == nil {
 		for _, path := range files {
 			if isSheetImage(path) {
-				a.startSheetImage(path)
+				a.stageSheetImage(path)
 				return
 			}
 		}
 	}
 	if text := strings.TrimSpace(mygo.Clipboard.ReadText()); text != "" {
+		a.sheetTab = 1
+		a.resetStagedChart()
 		a.sheetPaste = text
 		a.sheetErr = ""
 		a.sheetNote = "已粘贴文本曲谱；确认后点「生成字幕与和弦」"
@@ -500,6 +623,15 @@ func (a *app) pasteSheetClipboard() {
 	}
 	a.sheetErr = "剪贴板里没有图片或曲谱文本"
 	a.invalidate()
+}
+
+// sheetPasteShortcut is declared from inside the chart dialogs: a modal
+// holds the focus and the window's shortcuts built behind it wait.
+func (a *app) sheetPasteShortcut(c *ui.Context) {
+	if c.FocusTakesText() {
+		return
+	}
+	c.OnWindowShortcut(ui.Cmd, ui.KeyV, a.pasteSheetClipboard)
 }
 
 func (a *app) applySheetText() {
@@ -518,6 +650,7 @@ func (a *app) applySheetText() {
 		return
 	}
 	if a.sheetMode == sheetForNew {
+		a.resetStagedChart()
 		a.newChart = parsed
 		a.newChartOrigin = chartOrigin{Name: "粘贴文本", Text: text}
 		a.sheetNote = fmt.Sprintf("已解析 %d 行、%d 个和弦；创建工程时自动对齐",
@@ -526,6 +659,7 @@ func (a *app) applySheetText() {
 		a.invalidate()
 		return
 	}
+	a.resetStagedChart()
 	a.applySheet(parsed, chartOrigin{Name: "粘贴文本", Text: text})
 }
 

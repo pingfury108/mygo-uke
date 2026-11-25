@@ -260,6 +260,59 @@ func TestMergeKeepsChartChordsOverAudio(t *testing.T) {
 	}
 }
 
+func TestMergeReanalyzeKeepsFreshChartTimingAndManualBars(t *testing.T) {
+	edited := New("test")
+	edited.Duration = 8
+	edited.Lines = []Line{{
+		Start: 0, End: 4, Text: "好想能看到",
+		Chords: []ChordMark{{At: 0, Label: "F"}},
+	}}
+	edited.LinesEdited = true
+	edited.Chords = []score.ChordSegment{{Start: 0, End: 4, Label: "F", Source: "chart"}}
+	edited.Bars = []score.Bar{
+		{Start: 0, End: 4, Chords: []string{"F"}},
+		{Start: 4, End: 8, Chords: []string{"G"}, Manual: true},
+	}
+
+	built := New("test")
+	built.Duration = 8
+	built.Lines = []Line{{
+		Start: 4, End: 8, Text: "好想能看到",
+		Chords: []ChordMark{{At: 0, Label: "F"}},
+	}}
+	built.LinesEdited = true
+	built.Chords = []score.ChordSegment{{Start: 4, End: 8, Label: "F", Source: "chart"}}
+	built.Bars = []score.Bar{
+		{Start: 0, End: 4, Chords: []string{"C"}},
+		{Start: 4, End: 8, Chords: []string{"Am"}},
+	}
+
+	merged := MergeReanalyze(edited, built)
+	if merged.Lines[0].Start != 4 {
+		t.Fatalf("stale line timing = %+v", merged.Lines)
+	}
+	if len(merged.Chords) != 1 || merged.Chords[0].Start != 4 {
+		t.Fatalf("stale chart chords = %+v", merged.Chords)
+	}
+	if merged.Bars[1].Chords[0] != "G" || !merged.Bars[1].Manual {
+		t.Fatalf("manual bar lost = %+v", merged.Bars)
+	}
+}
+
+func TestMergeReanalyzeWithoutChartKeepsEdits(t *testing.T) {
+	edited := New("test")
+	edited.LinesEdited = true
+	edited.Lines = []Line{{Start: 0, End: 3, Text: "手动字幕"}}
+
+	built := New("test")
+	built.Lines = []Line{{Start: 5, End: 8, Text: "新转写字幕"}}
+
+	merged := MergeReanalyze(edited, built)
+	if len(merged.Lines) != 1 || merged.Lines[0].Text != "手动字幕" {
+		t.Fatalf("lines = %+v", merged.Lines)
+	}
+}
+
 func TestSetChartChordAtUpdatesCharacterAnchor(t *testing.T) {
 	p := New("test")
 	p.Duration = 4

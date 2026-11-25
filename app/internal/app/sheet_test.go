@@ -1,9 +1,18 @@
 package app
 
 import (
+	"bytes"
+	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -13,6 +22,9 @@ import (
 func TestSheetModalParsesPastedText(t *testing.T) {
 	t.Setenv("MYGO_UKE_SETTINGS", filepath.Join(t.TempDir(), "settings.json"))
 	a := newApp()
+	a.settings.SheetBaseURL = "https://example.com/v1"
+	a.settings.SheetAPIKey = "test"
+	a.settings.SheetModel = "vision"
 	a.proj = project.New("下一秒")
 	a.proj.Duration = 8
 	a.proj.Beats = []float64{0, 1, 2, 3, 4, 5, 6, 7, 8}
@@ -50,6 +62,190 @@ func TestSheetModalParsesPastedText(t *testing.T) {
 		t.Fatalf("saved lines = %d chords = %d", len(saved.Lines), len(saved.Chords))
 	} else if saved.ChartName != "粘贴文本" || saved.ChartText == "" {
 		t.Fatalf("saved chart = %+v", saved)
+	}
+}
+
+func TestSheetImagePaneOffersPasteButton(t *testing.T) {
+	t.Setenv("MYGO_UKE_SETTINGS", filepath.Join(t.TempDir(), "settings.json"))
+	a := newApp()
+	a.settings.SheetBaseURL = "https://example.com/v1"
+	a.settings.SheetAPIKey = "test"
+	a.settings.SheetModel = "vision"
+	a.projPath = filepath.Join(t.TempDir(), "song", "project.json")
+	a.openSheetModal()
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if _, ok := tt.Find("从剪贴板粘贴"); !ok {
+		t.Fatal("chart image pane lost its explicit paste action")
+	}
+}
+
+func TestOpenSheetModalRestoresStoredImage(t *testing.T) {
+	t.Setenv("MYGO_UKE_SETTINGS", filepath.Join(t.TempDir(), "settings.json"))
+	a := newApp()
+	a.settings.SheetBaseURL = "https://example.com/v1"
+	a.settings.SheetAPIKey = "test"
+	a.settings.SheetModel = "vision"
+	a.proj = project.New("下一秒")
+	a.proj.Duration = 8
+	a.proj.ChartName = "原图.png"
+	a.proj.ChartImage = "chart.png"
+	a.projPath = filepath.Join(t.TempDir(), "song", "project.json")
+	dir := filepath.Dir(a.projPath)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "chart.png"), testChartPNG(t), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	a.openSheetModal()
+	if a.stagedChart.Path == "" || a.stagedPreview == nil {
+		t.Fatalf("stored chart not staged: %+v preview = %v", a.stagedChart, a.stagedPreview)
+	}
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if _, ok := tt.Find("重新识别"); !ok {
+		t.Fatal("reopened sheet modal lost its re-recognition action")
+	}
+}
+
+func TestStageSheetImageWaitsForConfirmation(t *testing.T) {
+	t.Setenv("MYGO_UKE_SETTINGS", filepath.Join(t.TempDir(), "settings.json"))
+	a := newApp()
+	a.settings.SheetBaseURL = "https://example.com/v1"
+	a.settings.SheetAPIKey = "test"
+	a.settings.SheetModel = "vision"
+	a.openSheetModal()
+
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			img.Set(x, y, color.RGBA{R: 240, G: 210, B: 120, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	a.stageSheetImageData(buf.Bytes())
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if a.sheetRunning {
+		t.Fatal("staging an image started recognition before confirmation")
+	}
+	if a.stagedChart.Name != "剪贴板图片" || a.stagedPreview == nil {
+		t.Fatalf("staged chart = %+v preview = %v", a.stagedChart, a.stagedPreview)
+	}
+	if _, ok := tt.Find("待识别的曲谱"); !ok {
+		t.Fatal("staged image has no preview")
+	}
+	if _, ok := tt.Find("开始识别"); !ok {
+		t.Fatal("staged image has no confirmation action")
+	}
+
+	a.openNewProject()
+	a.stageSheetImageData(buf.Bytes())
+	if _, _, err := a.pendingChart(); err == nil {
+		t.Fatal("new project accepted a staged image before recognition")
+	}
+}
+
+func TestReparseSheetImageSendsFreshRequest(t *testing.T) {
+	t.Setenv("MYGO_UKE_SETTINGS", filepath.Join(t.TempDir(), "settings.json"))
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := requests.Add(1)
+		chords := "F  G"
+		if count > 1 {
+			chords = "G  Am"
+		}
+		content := `{"key":"C","capo":0,"lines":[{"chords":"` + chords + `","lyrics":"好想能看到 你嘴角微笑"}]}`
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "chatcmpl-test",
+			"object":  "chat.completion",
+			"created": 0,
+			"model":   "vision-test",
+			"choices": []any{map[string]any{
+				"index":         0,
+				"finish_reason": "stop",
+				"message":       map[string]any{"role": "assistant", "content": content},
+			}},
+		})
+	}))
+	defer server.Close()
+
+	a := newApp()
+	a.settings.SheetBaseURL = server.URL
+	a.settings.SheetAPIKey = "test"
+	a.settings.SheetModel = "vision"
+	dispatched := make(chan func(), 1)
+	a.sheetDispatch = func(fn func()) { dispatched <- fn }
+
+	a.proj = project.New("下一秒")
+	a.proj.Duration = 8
+	a.proj.Beats = []float64{0, 1, 2, 3, 4, 5, 6, 7, 8}
+	a.proj.Downbeats = []float64{0, 4}
+	a.projPath = filepath.Join(t.TempDir(), "song", "project.json")
+	a.openSheetModal()
+	a.stageSheetImageData(testChartPNG(t))
+
+	tt := ui.NewTester(a.view, 1440, 900)
+	tt.Frame()
+	if err := tt.Click("开始识别"); err != nil {
+		t.Fatal(err)
+	}
+	runSheetCallback(t, dispatched)
+
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("requests after first recognition = %d, want 1", got)
+	}
+	if len(a.proj.Chords) != 2 || a.proj.Chords[0].Label != "F" {
+		t.Fatalf("chords after first recognition = %+v", a.proj.Chords)
+	}
+
+	tt.Frame()
+	if err := tt.Click("重新识别"); err != nil {
+		t.Fatal(err)
+	}
+	runSheetCallback(t, dispatched)
+
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("requests after re-recognition = %d, want 2", got)
+	}
+	if len(a.proj.Chords) != 2 || a.proj.Chords[0].Label != "G" {
+		t.Fatalf("chords after re-recognition = %+v", a.proj.Chords)
+	}
+	if a.stagedChart.Name == "" {
+		t.Fatal("re-recognition dropped the staged image")
+	}
+}
+
+func testChartPNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for y := 0; y < 4; y++ {
+		for x := 0; x < 4; x++ {
+			img.Set(x, y, color.RGBA{R: 240, G: 210, B: 120, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, img); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
+func runSheetCallback(t *testing.T, dispatched <-chan func()) {
+	t.Helper()
+	select {
+	case fn := <-dispatched:
+		fn()
+	case <-time.After(5 * time.Second):
+		t.Fatal("sheet recognition did not finish")
 	}
 }
 

@@ -29,6 +29,33 @@ func chordTooltip(name string) string {
 	return uke.Describe(chord)
 }
 
+// dialogWidth keeps a desktop dialog inside a phone or a split view.
+func dialogWidth(c *ui.Context, want float32) float32 {
+	w, _ := c.Size()
+	if w-80 < want {
+		return w - 80
+	}
+	return want
+}
+
+func narrowDialog(c *ui.Context) bool {
+	w, h := c.Size()
+	return w < 620 || h < 640 || phoneShell(c)
+}
+
+// narrowWidth is where two columns of content would be too tight.
+func narrowWidth(c *ui.Context) bool {
+	w, _ := c.Size()
+	return w < 620
+}
+
+// phoneShell is the single-column layout: phones, tablets in portrait, and
+// windows too narrow for three columns.
+func phoneShell(c *ui.Context) bool {
+	w, h := c.Size()
+	return w < 1000 || h > w
+}
+
 // flatButton is the quiet bordered button used in the title bar and stage
 // header.
 func flatButton(c *ui.Context, textValue string, onClick func()) ui.Element {

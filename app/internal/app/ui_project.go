@@ -31,48 +31,46 @@ func (a *app) projectModal(c *ui.Context) {
 	if a.projectErr != "" {
 		detail = a.projectErr
 	}
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(480).Gap(12).Children(func() {
-			modalTitle(c, "工程设置", detail)
-			ui.Column(c).Gap(4).Children(func() {
-				text(c, "工程名称", 9.5, pal.muted)
-				ui.TextInput(c, &a.projectTitle).Label("工程名称").
-					Placeholder("输入工程名称").FillWidth().AutoFocus()
-			})
-			if item.path != "" {
-				mono(c, item.path, 8.5, pal.faint).SingleLine()
-			}
-			if a.proj != nil && a.proj.ChartName != "" {
-				path := a.chartPath()
-				ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
-					AlignItems(ui.Center).Gap(8).Children(func() {
-					text(c, "曲谱", 10, pal.muted).Width(42)
-					ui.Column(c).Grow(1).Children(func() {
-						mono(c, a.proj.ChartName, 9.5, pal.text).SingleLine()
-					})
-					if path != "" {
-						ghostButton(c, "预览", func() { _ = mygo.Shell.PreviewItem(path) })
-					}
-					ghostButton(c, "更换", func() {
-						a.modal = modalNone
-						a.openSheetModal()
-					})
+	a.dialog(c, &open, 480, 0.4, func() {
+		modalTitle(c, "工程设置", detail)
+		ui.Column(c).Gap(4).Children(func() {
+			text(c, "工程名称", 9.5, pal.muted)
+			ui.TextInput(c, &a.projectTitle).Label("工程名称").
+				Placeholder("输入工程名称").FillWidth().AutoFocus()
+		})
+		if item.path != "" {
+			mono(c, item.path, 8.5, pal.faint).SingleLine()
+		}
+		if a.proj != nil && a.proj.ChartName != "" {
+			path := a.chartPath()
+			ui.Row(c).Padding(8, 10, 8, 10).Radius(7).Background(pal.card).
+				AlignItems(ui.Center).Gap(8).Children(func() {
+				text(c, "曲谱", 10, pal.muted).Width(42)
+				ui.Column(c).Grow(1).Children(func() {
+					mono(c, a.proj.ChartName, 9.5, pal.text).SingleLine()
 				})
-			}
-			if a.projectConfirm {
-				ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
-					AlignItems(ui.Center).Children(func() {
-					dot(c, pal.warn)
-					text(c, "再点一次删除，工程目录会一起移除", 9.5, pal.warn)
-				})
-			}
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if item.path != "" {
-					ghostButton(c, "删除", func() { a.deleteProject(c) })
+				if path != "" {
+					ghostButton(c, "预览", func() { _ = mygo.Shell.PreviewItem(path) })
 				}
-				ghostButton(c, "取消", func() { a.modal = modalNone })
-				primaryButton(c, "保存名称", func() { a.saveProjectTitle(c) })
+				ghostButton(c, "更换", func() {
+					a.modal = modalNone
+					a.openSheetModal()
+				})
 			})
+		}
+		if a.projectConfirm {
+			ui.Row(c).Padding(8, 10, 8, 10).Radius(8).Background(pal.warnBG).
+				AlignItems(ui.Center).Children(func() {
+				dot(c, pal.warn)
+				text(c, "再点一次删除，工程目录会一起移除", 9.5, pal.warn)
+			})
+		}
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			if item.path != "" {
+				ghostButton(c, "删除", func() { a.deleteProject(c) })
+			}
+			ghostButton(c, "取消", func() { a.modal = modalNone })
+			primaryButton(c, "保存名称", func() { a.saveProjectTitle(c) })
 		})
 	})
 	if !open {

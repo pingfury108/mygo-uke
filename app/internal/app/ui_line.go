@@ -141,23 +141,21 @@ func (a *app) lineModal(c *ui.Context) {
 	if a.lineIndex >= 0 {
 		title = fmt.Sprintf("编辑第 %d 句", a.lineIndex+1)
 	}
-	ui.Modal(c, &open, func() {
-		ui.Column(c).Width(500).Gap(12).Children(func() {
-			modalTitle(c, title, "逐字字幕按句内字符均分；新增/改字时会保留曲谱和弦位置")
-			ui.Column(c).Gap(4).Children(func() {
-				text(c, "字幕", 10, pal.muted)
-				ui.TextInput(c, &a.lineText).Placeholder("输入这一句歌词").Label("字幕").
-					FillWidth().AutoFocus()
-			})
-			lineTimeRow(c, "开始", 0, a.lineStart, a)
-			lineTimeRow(c, "结束", 1, a.lineEnd, a)
-			ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
-				if a.lineIndex >= 0 {
-					ghostButton(c, "删除", func() { a.deleteLine(c) })
-				}
-				ghostButton(c, "取消", func() { a.modal = modalNone })
-				primaryButton(c, "保存字幕", func() { a.saveLine(c) })
-			})
+	a.dialog(c, &open, 500, 0.45, func() {
+		modalTitle(c, title, "逐字字幕按句内字符均分；新增/改字时会保留曲谱和弦位置")
+		ui.Column(c).Gap(4).Children(func() {
+			text(c, "字幕", 10, pal.muted)
+			ui.TextInput(c, &a.lineText).Placeholder("输入这一句歌词").Label("字幕").
+				FillWidth().AutoFocus()
+		})
+		lineTimeRow(c, "开始", 0, a.lineStart, a)
+		lineTimeRow(c, "结束", 1, a.lineEnd, a)
+		ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+			if a.lineIndex >= 0 {
+				ghostButton(c, "删除", func() { a.deleteLine(c) })
+			}
+			ghostButton(c, "取消", func() { a.modal = modalNone })
+			primaryButton(c, "保存字幕", func() { a.saveLine(c) })
 		})
 	})
 	if !open {

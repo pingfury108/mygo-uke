@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -34,11 +35,14 @@ const (
 type app struct {
 	win *mygo.Window
 
-	proj     *project.Project
-	projPath string
-	projects []projectItem
-	selected int
-	tab      int
+	proj        *project.Project
+	projPath    string
+	projects    []projectItem
+	selected    int
+	tab         int
+	phoneTab    int
+	phoneBar    int
+	phoneScroll ui.ScrollState
 
 	orientation int
 	playing     bool
@@ -101,6 +105,9 @@ type app struct {
 	sheetMode     int
 	sheetSeq      int
 	sheetCancel   context.CancelFunc
+	sheetDispatch func(func())
+	stagedChart   chartOrigin
+	stagedPreview ui.ImageSource
 	chartThumb    ui.ImageSource
 	chartThumbKey string
 
@@ -116,18 +123,21 @@ func Run() error {
 	a := newApp()
 	mygo.App.WhenReady(func() {
 		a.loadLibrary()
-		a.win = mygo.NewWindow(mygo.WindowOptions{
+		options := mygo.WindowOptions{
 			Title:                "MyGo Uke",
-			Width:                1440,
-			Height:               900,
-			MinWidth:             1100,
-			MinHeight:            700,
 			StateKey:             "main",
 			TitleBarStyle:        mygo.TitleBarHiddenInset,
 			TrafficLightPosition: &mygo.Point{X: 20, Y: 18},
 			BackgroundColor:      "#0F1013",
 			Content:              ui.View(a.view),
-		})
+		}
+		if runtime.GOOS != "ios" {
+			options.Width = 1440
+			options.Height = 900
+			options.MinWidth = 1100
+			options.MinHeight = 700
+		}
+		a.win = mygo.NewWindow(options)
 		a.win.OnFileDrop(func(e *mygo.FileDropEvent) {
 			if len(e.Paths) == 0 {
 				return
@@ -147,7 +157,7 @@ func Run() error {
 				}
 				a.newVideo = video
 				if chart != "" {
-					a.startSheetImage(chart)
+					a.stageSheetImage(chart)
 				}
 				return
 			}
@@ -155,7 +165,7 @@ func Run() error {
 				if a.modal != modalNewProject {
 					a.openSheetModal()
 				}
-				a.startSheetImage(chart)
+				a.stageSheetImage(chart)
 				return
 			}
 		})
@@ -172,18 +182,20 @@ func newApp() *app {
 	p := demoProject()
 	s := loadSettings()
 	return &app{
-		proj:         p,
-		projects:     demoProjects(),
-		playhead:     42.0,
-		selectedLine: 6,
-		chordChoice:  "C",
-		lineIndex:    -1,
-		revealLine:   -1,
-		revealBar:    -1,
-		chordCursor:  -1,
-		exportSRT:    false,
-		asrConfig:    s.asrConfig(),
-		settings:     s,
+		proj:          p,
+		projects:      demoProjects(),
+		playhead:      42.35,
+		selectedLine:  7,
+		chordChoice:   "C",
+		phoneBar:      -1,
+		lineIndex:     -1,
+		revealLine:    -1,
+		revealBar:     -1,
+		chordCursor:   -1,
+		exportSRT:     false,
+		asrConfig:     s.asrConfig(),
+		settings:      s,
+		sheetDispatch: mygo.RunOnMain,
 	}
 }
 
@@ -204,15 +216,11 @@ func (a *app) view(c *ui.Context) {
 	a.handleKeys(c)
 	a.tick(c)
 
-	ui.Column(c).Fill().Background(pal.bg).Children(func() {
-		a.titlebar(c)
-		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
-			a.rail(c)
-			a.stage(c)
-			a.inspector(c)
-		})
-		a.statusbar(c)
-	})
+	if phoneShell(c) {
+		a.phone(c)
+	} else {
+		a.workspace(c)
+	}
 
 	switch a.modal {
 	case modalExport:
@@ -232,6 +240,20 @@ func (a *app) view(c *ui.Context) {
 	case modalNewProject:
 		a.newProjectModal(c)
 	}
+}
+
+// workspace is the desktop and iPad landscape shell: projects, preview and
+// the inspector side by side.
+func (a *app) workspace(c *ui.Context) {
+	ui.Column(c).Fill().Background(pal.bg).Children(func() {
+		a.titlebar(c)
+		ui.Row(c).Grow(1).AlignItems(ui.Stretch).Children(func() {
+			a.rail(c)
+			a.stage(c)
+			a.inspector(c)
+		})
+		a.statusbar(c)
+	})
 }
 
 func (a *app) handleKeys(c *ui.Context) {
@@ -349,7 +371,7 @@ func (a *app) seek(delta float64) {
 
 func (a *app) syncSelection() {
 	for i, line := range a.proj.Lines {
-		if a.playhead >= line.Start-0.01 && a.playhead <= line.End+0.01 {
+		if a.playhead >= line.Start-0.01 && a.playhead < line.End {
 			if a.selectedLine != i {
 				a.selectedLine = i
 				if !a.playing {
@@ -366,7 +388,7 @@ func (a *app) lineAt(t float64) (project.Line, int, bool) {
 		return project.Line{}, -1, false
 	}
 	for i, line := range a.proj.Lines {
-		if t >= line.Start && t <= line.End {
+		if t >= line.Start && t < line.End {
 			return line, i, true
 		}
 	}

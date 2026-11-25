@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -13,11 +14,14 @@ func (a *app) titlebar(c *ui.Context) {
 	if bar.Left > 0 {
 		left = bar.Left + 8
 	}
-	ui.Row(c).Height(52).Padding(0, 16, 0, left).Gap(14).
-		AlignItems(ui.Center).Background(pal.bg2).DragWindow().
-		DrawOver(func(p *ui.Painter, r ui.Rect) {
-			p.Line(r.X, r.Y+r.H-0.5, r.X+r.W, r.Y+r.H-0.5, 1, pal.line)
-		}).Children(func() {
+	row := ui.Row(c).Height(52).Padding(0, 16, 0, left).Gap(14).
+		AlignItems(ui.Center).Background(pal.bg2)
+	if runtime.GOOS != "ios" {
+		row = row.DragWindow()
+	}
+	row.DrawOver(func(p *ui.Painter, r ui.Rect) {
+		p.Line(r.X, r.Y+r.H-0.5, r.X+r.W, r.Y+r.H-0.5, 1, pal.line)
+	}).Children(func() {
 		ui.Box(c).Size(22, 22).Radius(6).Background(pal.accent).Center().Children(func() {
 			label(c, "M", 11, pal.accentInk, 800)
 		})
@@ -32,18 +36,28 @@ func (a *app) titlebar(c *ui.Context) {
 		ui.Box(c).Grow(1)
 		flatButton(c, "重新转写", func() { a.startReanalyze(c) })
 		segment(c, []string{"竖屏", "横屏"}, &a.orientation)
-		primaryButton(c, "导出成片", func() {
-			a.exportProgress = 0
-			a.exportErr = ""
-			a.exportPath = ""
-			a.exportNote = ""
-			a.modal = modalExport
-		})
+		primaryButton(c, "导出成片", a.openExportModal)
 	})
 }
 
+func railWidth(c *ui.Context) float32 {
+	w, _ := c.Size()
+	if w < 1280 {
+		return 208
+	}
+	return 234
+}
+
+func inspectorWidth(c *ui.Context) float32 {
+	w, _ := c.Size()
+	if w < 1280 {
+		return 296
+	}
+	return 326
+}
+
 func (a *app) rail(c *ui.Context) {
-	ui.Column(c).Width(234).Background(pal.bg2).Padding(13, 11, 11, 11).
+	ui.Column(c).Width(railWidth(c)).Background(pal.bg2).Padding(13, 11, 11, 11).
 		DrawOver(func(p *ui.Painter, r ui.Rect) {
 			p.Line(r.X+r.W-0.5, r.Y, r.X+r.W-0.5, r.Y+r.H, 1, pal.line)
 		}).Children(func() {
@@ -120,6 +134,8 @@ func (a *app) selectProject(index int) {
 		a.proj = item.data
 		a.projPath = item.path
 		a.resetCursor()
+		a.phoneBar = -1
+		a.phoneScroll.Y = 0
 		a.openPlayerFor(a.proj.Source)
 	} else {
 		a.closePlayer()
@@ -128,11 +144,13 @@ func (a *app) selectProject(index int) {
 		if index > 0 {
 			a.proj.Title = item.title
 		}
-		a.playhead = 42
-		a.selectedLine = 6
-		a.revealLine = 6
+		a.playhead = 42.35
+		a.selectedLine = 7
+		a.revealLine = 7
 		a.revealBar = -1
 		a.chordCursor = -1
+		a.phoneBar = -1
+		a.phoneScroll.Y = 0
 		a.resetInspectorScroll()
 	}
 	a.playing = false

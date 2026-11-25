@@ -124,7 +124,7 @@ func (a *app) startJob(source string, importing bool, chart *sheet.Sheet, origin
 				return
 			}
 			if !importing && a.proj != nil {
-				built = project.Merge(a.proj, built)
+				built = mergeAfterReanalyze(a.proj, built)
 				if a.projPath != "" {
 					if saveErr := project.Save(a.projPath, built); saveErr != nil {
 						a.jobErr = "保存重新转写结果失败：" + saveErr.Error()
@@ -169,6 +169,19 @@ func (a *app) startJob(source string, importing bool, chart *sheet.Sheet, origin
 			a.invalidate()
 		})
 	}()
+}
+
+// mergeAfterReanalyze prefers the fresh ASR timing, but keeps the old project
+// when transcription failed and the chart only produced fallback spacing.
+func mergeAfterReanalyze(edited, built *project.Project) *project.Project {
+	if built != nil {
+		for _, warning := range built.Warnings {
+			if strings.HasPrefix(warning, "字幕识别失败") {
+				return project.Merge(edited, built)
+			}
+		}
+	}
+	return project.MergeReanalyze(edited, built)
 }
 
 func (a *app) retryJob() {

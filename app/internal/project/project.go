@@ -215,31 +215,12 @@ func Merge(edited, built *Project) *Project {
 	if edited == nil || built == nil {
 		return built
 	}
-	built.Title = edited.Title
-	built.Capo = edited.Capo
-	built.Style = edited.Style
-	built.ChartImage = edited.ChartImage
-	built.ChartName = edited.ChartName
-	built.ChartText = edited.ChartText
-	built.ChartAt = edited.ChartAt
+	mergeUserSettings(edited, built)
 	if edited.LinesEdited {
 		built.Lines = append([]Line(nil), edited.Lines...)
 		built.LinesEdited = true
 	}
-	hasChart := false
-	for _, segment := range edited.Chords {
-		if segment.Source == "chart" {
-			hasChart = true
-			break
-		}
-	}
-	for _, line := range edited.Lines {
-		if len(line.Chords) > 0 {
-			hasChart = true
-			break
-		}
-	}
-	if hasChart {
+	if edited.HasChartChords() {
 		built.Chords = nil
 		for _, segment := range edited.Chords {
 			if segment.Source == "chart" {
@@ -248,6 +229,21 @@ func Merge(edited, built *Project) *Project {
 		}
 		built.RebuildChartChords()
 	}
+	mergeManualBars(edited, built)
+	return built
+}
+
+func mergeUserSettings(edited, built *Project) {
+	built.Title = edited.Title
+	built.Capo = edited.Capo
+	built.Style = edited.Style
+	built.ChartImage = edited.ChartImage
+	built.ChartName = edited.ChartName
+	built.ChartText = edited.ChartText
+	built.ChartAt = edited.ChartAt
+}
+
+func mergeManualBars(edited, built *Project) {
 	for i := range built.Bars {
 		for _, bar := range edited.Bars {
 			if !bar.Manual || !overlaps(bar, built.Bars[i]) {
@@ -261,6 +257,18 @@ func Merge(edited, built *Project) *Project {
 			break
 		}
 	}
+}
+
+// MergeReanalyze keeps chart-driven lyrics on the fresh timing from a new
+// transcription. A chart import marks LinesEdited, but reanalyze re-applies
+// the chart to the new ASR lines, so the stale lyrics and chord timings must
+// not win. Manual bar chords still survive by overlap.
+func MergeReanalyze(edited, built *Project) *Project {
+	if edited == nil || built == nil || !edited.HasChartChords() || !built.HasChartChords() {
+		return Merge(edited, built)
+	}
+	mergeUserSettings(edited, built)
+	mergeManualBars(edited, built)
 	return built
 }
 

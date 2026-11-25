@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"mygo-uke/internal/project"
+	"mygo-uke/internal/score"
 	"mygo-uke/internal/sheet"
 )
 
@@ -20,6 +21,17 @@ func (fakeMedia) ExtractPCM(_ context.Context, _, destination string) error {
 
 type fakeTranscriber struct {
 	err error
+}
+
+type timedTranscriber struct {
+	lines []project.Line
+}
+
+func (t timedTranscriber) Transcribe(
+	_ context.Context, _ string, _ float64, progress func(float64),
+) ([]project.Line, error) {
+	progress(1)
+	return t.lines, nil
 }
 
 func (f fakeTranscriber) Transcribe(
@@ -105,6 +117,85 @@ func TestImportAppliesChartAndBuildsBarsWithoutASR(t *testing.T) {
 	if len(built.Beats) == 0 || len(built.Downbeats) == 0 || len(built.Bars) == 0 {
 		t.Fatalf("grid = beats %d downbeats %d bars %d",
 			len(built.Beats), len(built.Downbeats), len(built.Bars))
+	}
+}
+
+func TestReanalyzeRetimesChartLyrics(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "song.mov")
+	if err := os.WriteFile(source, []byte("video"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	edited := project.New("song")
+	edited.Duration = 100
+	edited.Lines = []project.Line{
+		{Start: 10, End: 14, Text: "第一句", Chords: []project.ChordMark{{At: 0, Label: "C"}}},
+		{Start: 20, End: 24, Text: "第二句", Chords: []project.ChordMark{{At: 0, Label: "Am"}}},
+	}
+	edited.LinesEdited = true
+	edited.Chords = []score.ChordSegment{
+		{Start: 10, End: 20, Label: "C", Source: "chart"},
+		{Start: 20, End: 24, Label: "Am", Source: "chart"},
+	}
+
+	chart := sheet.FromProject(edited)
+	built, _, err := Import(
+		context.Background(), source, fakeMedia{}, fakeTranscriber{}, chart, t.TempDir(), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	merged := project.MergeReanalyze(edited, built)
+	if len(merged.Lines) != 2 || merged.Lines[0].Start != 0 || merged.Lines[1].Start != 3.6 {
+		t.Fatalf("lines kept stale timing: %+v", merged.Lines)
+	}
+	if len(merged.Chords) != 2 || merged.Chords[0].Label != "C" || merged.Chords[1].Label != "Am" {
+		t.Fatalf("chart chords = %+v", merged.Chords)
+	}
+	if merged.Chords[0].Start != merged.Lines[0].Start {
+		t.Fatalf("chord timing = %+v lines = %+v", merged.Chords, merged.Lines)
+	}
+}
+
+func TestReanalyzeKeepsChordOnlySections(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "song.mov")
+	if err := os.WriteFile(source, []byte("video"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	edited := project.New("song")
+	edited.Duration = 100
+	edited.Lines = []project.Line{
+		{Start: 10, End: 14, Text: "第一句", Chords: []project.ChordMark{{At: 0, Label: "C"}}},
+		{Start: 20, End: 24, Text: "第二句", Chords: []project.ChordMark{{At: 0, Label: "Am"}}},
+	}
+	edited.LinesEdited = true
+	edited.Chords = []score.ChordSegment{
+		{Start: 0, End: 5, Label: "F", Source: "chart"},
+		{Start: 5, End: 10, Label: "G", Source: "chart"},
+		{Start: 10, End: 20, Label: "C", Source: "chart"},
+		{Start: 20, End: 24, Label: "Am", Source: "chart"},
+		{Start: 24, End: 30, Label: "C", Source: "chart"},
+	}
+	transcriber := timedTranscriber{lines: []project.Line{
+		{Start: 10, End: 14, Text: "第一句"},
+		{Start: 20, End: 24, Text: "第二句"},
+	}}
+
+	built, _, err := Import(
+		context.Background(), source, fakeMedia{}, transcriber, sheet.FromProject(edited), t.TempDir(), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	merged := project.MergeReanalyze(edited, built)
+	if len(merged.Lines) != 2 {
+		t.Fatalf("chord-only sections leaked into subtitles: %+v", merged.Lines)
+	}
+	labels := make([]string, 0, len(merged.Chords))
+	for _, segment := range merged.Chords {
+		labels = append(labels, segment.Label)
+	}
+	if len(labels) != 5 || labels[0] != "F" || labels[1] != "G" || labels[4] != "C" {
+		t.Fatalf("chords = %v", labels)
 	}
 }
 

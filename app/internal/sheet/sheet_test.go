@@ -326,6 +326,38 @@ func TestApplyKeepsChordOnlyLinesOutOfSubtitles(t *testing.T) {
 	}
 }
 
+func TestFromProjectKeepsChordOnlySections(t *testing.T) {
+	p := project.New("test")
+	p.Duration = 30
+	p.Lines = []project.Line{
+		{Start: 10, End: 14, Text: "第一句", Chords: []project.ChordMark{{At: 0, Label: "C"}}},
+		{Start: 20, End: 24, Text: "第二句", Chords: []project.ChordMark{{At: 0, Label: "Am"}}},
+	}
+	p.Chords = []score.ChordSegment{
+		{Start: 0, End: 5, Label: "F", Source: "chart"},
+		{Start: 5, End: 10, Label: "G", Source: "chart"},
+		{Start: 10, End: 20, Label: "C", Source: "chart"},
+		{Start: 20, End: 24, Label: "Am", Source: "chart"},
+		{Start: 24, End: 30, Label: "C", Source: "chart"},
+	}
+
+	chart := FromProject(p)
+	if chart == nil || len(chart.Lines) != 4 {
+		t.Fatalf("chart = %+v", chart)
+	}
+	if chart.Lines[0].Lyrics != "" || len(chart.Lines[0].Chords) != 2 ||
+		chart.Lines[0].Chords[0].Label != "F" || chart.Lines[0].Chords[1].Label != "G" {
+		t.Fatalf("intro = %+v", chart.Lines[0])
+	}
+	if chart.Lines[1].Lyrics != "第一句" || chart.Lines[2].Lyrics != "第二句" {
+		t.Fatalf("lyrics = %+v", chart.Lines)
+	}
+	if chart.Lines[3].Lyrics != "" || len(chart.Lines[3].Chords) != 1 ||
+		chart.Lines[3].Chords[0].Label != "C" {
+		t.Fatalf("outro = %+v", chart.Lines[3])
+	}
+}
+
 func TestApplyOnlyReplacesWhatTheChartHas(t *testing.T) {
 	p := project.New("下一秒")
 	p.Duration = 4

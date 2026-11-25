@@ -103,7 +103,7 @@ func (a *app) avgConfidence() float64 {
 func (a *app) preview(c *ui.Context) {
 	width, height := c.Size()
 	if a.orientation == 1 {
-		available := width - 234 - 326 - 52
+		available := width - railWidth(c) - inspectorWidth(c) - 52
 		frameW := available
 		if frameW > 760 {
 			frameW = 760
@@ -249,7 +249,7 @@ func lineChordText(spans []project.ChordSpan) string {
 	return strings.Join(labels, "  ")
 }
 
-func (a *app) videoFrame(c *ui.Context, w, h float32) {
+func (a *app) videoFrame(c *ui.Context, w, h float32) ui.Element {
 	frame := ui.Box(c).Size(w, h).Radius(17).Clip().
 		Border(1, pal.frameLine).Background(ui.Hex("#171512")).
 		Shadow(0, 28, 60, 0, ui.RGBA(0, 0, 0, 0.34))
@@ -284,6 +284,7 @@ func (a *app) videoFrame(c *ui.Context, w, h float32) {
 			mono(c, "1080 × 1920", 7, ui.RGBA(255, 248, 234, 0.62))
 		})
 	})
+	return frame
 }
 
 func drawVideoPlaceholder(p *ui.Painter, r ui.Rect, tag string) {
